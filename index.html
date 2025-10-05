@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Mural AR</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
@@ -10,6 +11,21 @@
         body {
             margin: 0;
             overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #error-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 10000;
+            display: none;
+            max-width: 80%;
+            text-align: center;
         }
         #instrucciones {
             position: absolute;
@@ -20,7 +36,6 @@
             color: white;
             padding: 15px 25px;
             border-radius: 10px;
-            font-family: Arial, sans-serif;
             z-index: 1000;
             text-align: center;
             max-width: 90%;
@@ -55,41 +70,53 @@
             font-size: 1.25em;
             color: white;
         }
+        #btn-reload {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: white;
+            color: red;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
     </style>
 </head>
-<body style="margin: 0; overflow: hidden;">
+<body>
     <div class="arjs-loader">
-        <div>Cargando AR, espera un momento...</div>
+        <div>Cargando AR... 📱</div>
+    </div>
+
+    <div id="error-msg">
+        <h3>⚠️ Error de Cámara</h3>
+        <p id="error-text"></p>
+        <button id="btn-reload" onclick="location.reload()">Reintentar</button>
     </div>
 
     <div id="instrucciones">
-        <h3>📱 Mural en Realidad Aumentada</h3>
+        <h3>📱 Mural AR</h3>
         <p>Apunta la cámara al marcador Hiro</p>
-        <p><a href="https://github.com/AR-js-org/AR.js/blob/master/data/images/hiro.png" target="_blank">Descargar marcador aquí</a></p>
+        <p><a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank">Ver marcador</a></p>
     </div>
 
     <a-scene
         embedded
-        arjs="sourceType: webcam; debugUIEnabled: false;"
+        arjs="sourceType: webcam; debugUIEnabled: false; videoConstraints: {facingMode: 'environment'};"
         vr-mode-ui="enabled: false"
-        renderer="logarithmicDepthBuffer: true;">
+        renderer="logarithmicDepthBuffer: true; precision: medium;"
+        loading-screen="enabled: false">
         
-        <!-- Cámara -->
         <a-entity camera></a-entity>
 
-        <!-- Marcador con el mural -->
         <a-marker preset="hiro">
-            <!-- Plano con tu imagen de mural -->
             <a-image 
                 src="mural.png" 
                 position="0 0 0" 
                 rotation="-90 0 0" 
                 width="2" 
-                height="2"
-                opacity="1">
+                height="2">
             </a-image>
             
-            <!-- Marco decorativo opcional -->
             <a-box 
                 position="0 -0.05 0" 
                 rotation="-90 0 0" 
@@ -102,20 +129,39 @@
     </a-scene>
 
     <script>
-        // Remover el loader cuando AR.js esté listo
-        window.addEventListener('load', function () {
+        let cameraStarted = false;
+
+        // Manejo de errores mejorado
+        function mostrarError(mensaje) {
+            const errorDiv = document.getElementById('error-msg');
+            const errorText = document.getElementById('error-text');
             const loader = document.querySelector('.arjs-loader');
-            setTimeout(() => {
-                if (loader) {
-                    loader.style.display = 'none';
-                }
-            }, 2000);
+            
+            if (loader) loader.style.display = 'none';
+            errorText.textContent = mensaje;
+            errorDiv.style.display = 'block';
+        }
+
+        // Detectar cuando la cámara inicia
+        document.querySelector('a-scene').addEventListener('camera-init', () => {
+            cameraStarted = true;
+            console.log('✓ Cámara iniciada correctamente');
         });
 
-        // Ocultar instrucciones después de 10 segundos
+        // Remover loader
+        window.addEventListener('load', function () {
+            setTimeout(() => {
+                const loader = document.querySelector('.arjs-loader');
+                if (loader && cameraStarted) {
+                    loader.style.display = 'none';
+                }
+            }, 3000);
+        });
+
+        // Ocultar instrucciones
         setTimeout(() => {
             const instrucciones = document.getElementById('instrucciones');
-            if (instrucciones) {
+            if (instrucciones && cameraStarted) {
                 instrucciones.style.transition = 'opacity 1s';
                 instrucciones.style.opacity = '0';
                 setTimeout(() => {
@@ -124,16 +170,44 @@
             }
         }, 10000);
 
-        // Verificar acceso a cámara
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => {
-                console.log('✓ Cámara accesible');
-                stream.getTracks().forEach(track => track.stop());
-            })
-            .catch(err => {
-                console.error('Error de cámara:', err);
-                alert('⚠️ No se puede acceder a la cámara.\nAsegúrate de:\n1. Dar permisos de cámara\n2. Usar HTTPS o localhost\n3. Tener una cámara conectada');
-            });
+        // Verificar permisos de cámara
+        setTimeout(() => {
+            if (!cameraStarted) {
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                })
+                .then(stream => {
+                    console.log('✓ Permisos de cámara OK');
+                    stream.getTracks().forEach(track => track.stop());
+                })
+                .catch(err => {
+                    console.error('Error de cámara:', err);
+                    let mensaje = '';
+                    
+                    if (err.name === 'NotAllowedError') {
+                        mensaje = 'Permisos denegados. Ve a Ajustes → Apps → Chrome → Permisos → Cámara';
+                    } else if (err.name === 'NotReadableError') {
+                        mensaje = 'La cámara está en uso por otra app. Cierra todas las apps y recarga la página.';
+                    } else if (err.name === 'NotFoundError') {
+                        mensaje = 'No se encontró ninguna cámara en el dispositivo.';
+                    } else {
+                        mensaje = `Error: ${err.name} - ${err.message}`;
+                    }
+                    
+                    mostrarError(mensaje);
+                });
+            }
+        }, 4000);
+
+        // Detectar errores de AR.js
+        window.addEventListener('arjs-video-loaded', () => {
+            console.log('✓ Video AR cargado');
+            cameraStarted = true;
+        });
     </script>
 </body>
 </html>
