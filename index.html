@@ -107,23 +107,20 @@
         loading-screen="enabled: false">
         
         <!-- Assets para precargar la imagen -->
-        <a-assets timeout="10000">
-            <img id="miMural" src="./emi.png" crossorigin="anonymous">
+        <a-assets>
+            <img id="miMural" src="emi.png" crossorigin="anonymous">
         </a-assets>
         
         <a-entity camera></a-entity>
 
         <a-marker preset="hiro">
-            <!-- Imagen del mural -->
-            <a-plane 
-                src="#miMural" 
+            <!-- Imagen del mural con configuración simplificada -->
+            <a-entity
+                geometry="primitive: plane; width: 2; height: 2"
+                material="src: #miMural; side: double; shader: flat; transparent: false"
                 position="0 0 0.01" 
-                rotation="-90 0 0" 
-                width="2" 
-                height="2"
-                material="side: double; shader: flat; src: #miMural"
-                scale="1 1 1">
-            </a-plane>
+                rotation="-90 0 0">
+            </a-entity>
             
             <!-- Marco decorativo detrás -->
             <a-box 
@@ -139,6 +136,19 @@
 
     <script>
         let cameraStarted = false;
+
+        // Debug: verificar carga de imagen
+        const imgElement = document.querySelector('#miMural');
+        if (imgElement) {
+            imgElement.addEventListener('load', () => {
+                console.log('✓ Imagen cargada correctamente:', imgElement.src);
+                console.log('Dimensiones:', imgElement.width, 'x', imgElement.height);
+            });
+            imgElement.addEventListener('error', (e) => {
+                console.error('✗ Error cargando imagen:', e);
+                mostrarError('Error al cargar emi.png. Verifica que el archivo exista.');
+            });
+        }
 
         // Manejo de errores mejorado
         function mostrarError(mensaje) {
