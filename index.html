@@ -106,29 +106,34 @@
         renderer="logarithmicDepthBuffer: true; precision: medium;"
         loading-screen="enabled: false">
         
+        <!-- Assets para precargar la imagen -->
+        <a-assets>
+            <img id="miMural" src="mural.png" crossorigin="anonymous">
+        </a-assets>
+        
         <a-entity camera></a-entity>
 
         <a-marker preset="hiro">
-            <!-- Marco decorativo -->
+            <!-- Imagen del mural -->
+            <a-plane 
+                src="#miMural" 
+                position="0 0 0.01" 
+                rotation="-90 0 0" 
+                width="2" 
+                height="2"
+                material="side: double; shader: flat; src: #miMural"
+                scale="1 1 1">
+            </a-plane>
+            
+            <!-- Marco decorativo detrás -->
             <a-box 
-                position="0 0 -0.05" 
+                position="0 0 -0.02" 
                 rotation="-90 0 0" 
                 width="2.2" 
                 height="2.2" 
                 depth="0.08"
                 color="#654321">
             </a-box>
-            
-            <!-- Imagen del mural - ahora con mejor configuración -->
-            <a-plane 
-                src="mural.png" 
-                position="0 0 0" 
-                rotation="-90 0 0" 
-                width="2" 
-                height="2"
-                material="side: double; shader: flat; transparent: false"
-                scale="1 1 1">
-            </a-plane>
         </a-marker>
     </a-scene>
 
