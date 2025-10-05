@@ -109,22 +109,26 @@
         <a-entity camera></a-entity>
 
         <a-marker preset="hiro">
-            <a-image 
-                src="mural.png" 
-                position="0 0 0" 
-                rotation="-90 0 0" 
-                width="2" 
-                height="2">
-            </a-image>
-            
+            <!-- Marco decorativo -->
             <a-box 
-                position="0 -0.05 0" 
+                position="0 0 -0.05" 
                 rotation="-90 0 0" 
                 width="2.2" 
                 height="2.2" 
                 depth="0.08"
                 color="#654321">
             </a-box>
+            
+            <!-- Imagen del mural - ahora con mejor configuración -->
+            <a-plane 
+                src="mural.png" 
+                position="0 0 0" 
+                rotation="-90 0 0" 
+                width="2" 
+                height="2"
+                material="side: double; shader: flat; transparent: false"
+                scale="1 1 1">
+            </a-plane>
         </a-marker>
     </a-scene>
 
