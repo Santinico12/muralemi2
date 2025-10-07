@@ -5,18 +5,17 @@
   <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"/>
   <title>Mural AR (Three.js + jsartoolkit + VR/Cardboard)</title>
 
-  <!-- Three.js (versión compatible con THREEx/jsartoolkit) -->
+  <!-- Usa SOLO un three.js (CDN compatible con jsartoolkit/threex) -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.110.0/build/three.min.js"></script>
 
-  <!-- jsartoolkit y THREEx desde AR.js 3.4.5 (CDN sin 404) -->
-  <script src="three.js"></script>
+  <!-- Si ya subiste estos archivos al repo raíz, deja estas rutas relativas -->
   <script src="artoolkit.min.js"></script>
   <script src="artoolkit.api.js"></script>
   <script src="threex-artoolkitsource.js"></script>
   <script src="threex-artoolkitcontext.js"></script>
   <script src="threex-arbasecontrols.js"></script>
   <script src="threex-armarkercontrols.js"></script>
-  
+
   <style>
     html, body { margin:0; height:100%; background:#000; overflow:hidden; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; }
     #hud { position:fixed; top:10px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.55); color:#fff; padding:10px 14px; border-radius:10px; z-index:10; text-align:center; }
@@ -41,15 +40,14 @@
     <button id="btnVR" style="display:none">🕶️ Activar VR</button>
   </div>
 
-  <!-- TU video: debe existir en la raíz como /video.mp4 -->
+  <!-- TU video (debe existir en la raíz como /video.mp4) -->
   <video id="muralvid"
          src="video.mp4"
          preload="auto"
          loop
          muted
          playsinline
-         webkit-playsinline
-         crossorigin="anonymous"></video>
+         webkit-playsinline></video>
 
 <script>
 let scene, camera, renderer, clock;
@@ -65,7 +63,7 @@ init();
 animate();
 
 function init(){
-  // escena y luz
+  // escena + luz
   scene = new THREE.Scene();
   scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
@@ -101,9 +99,9 @@ function init(){
 
   window.addEventListener('resize', onResize);
 
-  // contexto AR
+  // contexto AR (¡APUNTA A TUS ARCHIVOS LOCALES!)
   arToolkitContext = new THREEx.ArToolkitContext({
-    cameraParametersUrl: 'https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/data/camera_para.dat',
+    cameraParametersUrl: 'data/camera_para.dat',   // <-- súbelo a /data/
     detectionMode: 'mono'
   });
 
@@ -111,13 +109,13 @@ function init(){
     camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
   });
 
-  // marcador Hiro
+  // marcador Hiro local (evita 404/CORS)
   markerRoot = new THREE.Group();
   scene.add(markerRoot);
 
   new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
     type: 'pattern',
-    patternUrl: 'https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/data/patt.hiro'
+    patternUrl: 'data/patt.hiro'                    // <-- súbelo a /data/
   });
 
   // plano con textura de video
@@ -152,10 +150,10 @@ function wireUI(){
   const btnVR    = document.getElementById('btnVR');
 
   btnStart.addEventListener('click', () => {
-    // autoplay móvil: mute + playsInline y gesto del usuario
+    // autoplay móvil: mute + playsInline + gesto
     videoEl.muted = true;
     videoEl.playsInline = true;
-    videoEl.load(); // asegura que tome src correcto
+    videoEl.load();
     const tryPlay = () => videoEl.play().catch(()=>setTimeout(tryPlay, 250));
     tryPlay();
 
@@ -192,7 +190,6 @@ function fitPlaneToVideo(){
   planeMesh.geometry.dispose();
   planeMesh.geometry = new THREE.PlaneBufferGeometry(W, H, 2, 2);
   planeMesh.geometry.needsUpdate = true;
-  // ajusta el marco
   frameMesh.scale.set(W/2, 1, H/1.3);
   console.log('[AR] video aspect', aspect.toFixed(3), 'plane', W.toFixed(2)+'x'+H.toFixed(2));
 }
@@ -208,11 +205,9 @@ function teardownStereoCameras(){
 
 function animate(){
   requestAnimationFrame(animate);
-
   if (arToolkitSource.ready){
     arToolkitContext.update(arToolkitSource.domElement);
   }
-
   if (!stereoMode || !stereoCams.left){
     renderer.setScissorTest(false);
     renderer.render(scene, camera);
@@ -226,7 +221,6 @@ function renderStereo(){
   const h = renderer.domElement.height;
   renderer.setScissorTest(true);
 
-  // proyección AR a cada ojo
   stereoCams.left.projectionMatrix.copy(camera.projectionMatrix);
   stereoCams.right.projectionMatrix.copy(camera.projectionMatrix);
 
@@ -240,12 +234,10 @@ function renderStereo(){
   stereoCams.left.matrixWorldInverse.copy(stereoCams.left.matrixWorld).invert();
   stereoCams.right.matrixWorldInverse.copy(stereoCams.right.matrixWorld).invert();
 
-  // ojo izquierdo
   renderer.setViewport(0, 0, w/2, h);
   renderer.setScissor(0, 0, w/2, h);
   renderer.render(scene, stereoCams.left);
 
-  // ojo derecho
   renderer.setViewport(w/2, 0, w/2, h);
   renderer.setScissor(w/2, 0, w/2, h);
   renderer.render(scene, stereoCams.right);
@@ -253,3 +245,4 @@ function renderStereo(){
 </script>
 </body>
 </html>
+
