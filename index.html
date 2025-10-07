@@ -1,268 +1,163 @@
 <!DOCTYPE html>
-<html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Mural AR (VideoTexture + VR)</title>
-
-  <!-- Combo estable que no apaga la cámara -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
-  <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
-
-  <style>
-    body { margin:0; overflow:hidden; font-family: Arial, sans-serif; }
-    .arjs-loader {
-      height:100%; width:100%; position:absolute; top:0; left:0;
-      background: rgba(0,0,0,.8); z-index:9999; display:flex; justify-content:center; align-items:center;
-    }
-    .arjs-loader div { color:#fff; font-size:1.2em; text-align:center; }
-
-    #error-msg {
-      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-      background: rgba(255,0,0,.9); color:#fff; padding:20px; border-radius:10px; z-index:10000;
-      display:none; max-width:80%; text-align:center;
-    }
-    #btn-reload { margin-top:10px; padding:10px 20px; background:#fff; color:#c00; border:0; border-radius:6px; font-size:16px; cursor:pointer; }
-
-    #instrucciones {
-      position:absolute; top:10px; left:50%; transform:translateX(-50%);
-      background: rgba(0,0,0,.7); color:#fff; padding:12px 20px; border-radius:10px; z-index:1000; text-align:center; max-width:90%;
-    }
-    #instrucciones h3 { margin:0 0 6px 0; font-size:18px; }
-    #instrucciones p { margin:4px 0; font-size:14px; }
-    #instrucciones a { color:#4CAF50; text-decoration:none; font-weight:bold; }
-
-    #controls {
-      position:fixed; bottom:10px; left:10px; right:10px; display:flex; gap:10px; justify-content:center; z-index:1001;
-    }
-    #controls button {
-      padding:10px 12px; border:0; border-radius:10px; cursor:pointer; font:600 14px system-ui,-apple-system,Segoe UI,Roboto,Arial;
-      background: rgba(255,255,255,.15); color:#fff; backdrop-filter: blur(4px);
-    }
-
-    /* Asegura que el video/canvas de la CÁMARA estén visibles a pantalla completa */
-    video, canvas, .a-canvas { position:fixed !important; inset:0 !important; width:100vw !important; height:100vh !important; }
-  </style>
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<title>Hello, world!</title>
+	<!-- include three.js library -->
+	<script src='js/three.js'></script>
+	<!-- include jsartookit -->
+	<script src="jsartoolkit5/artoolkit.min.js"></script>
+	<script src="jsartoolkit5/artoolkit.api.js"></script>
+	<!-- include threex.artoolkit -->
+	<script src="threex/threex-artoolkitsource.js"></script>
+	<script src="threex/threex-artoolkitcontext.js"></script>
+	<script src="threex/threex-arbasecontrols.js"></script>
+	<script src="threex/threex-armarkercontrols.js"></script>
 </head>
-<body>
-  <div class="arjs-loader"><div>Cargando AR... 📱</div></div>
 
-  <div id="error-msg">
-    <h3>⚠️ Error de Cámara</h3>
-    <p id="error-text"></p>
-    <button id="btn-reload" onclick="location.reload()">Reintentar</button>
-  </div>
+<body style='margin : 0px; overflow: hidden; font-family: Monospace;'>
 
-  <div id="instrucciones">
-    <h3>📱 Mural AR v3</h3>
-    <p>Apunta la cámara al marcador Hiro</p>
-    <p><a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank">Ver marcador</a></p>
-  </div>
+<video id="video" autoplay loop crossOrigin="anonymous" webkit-playsinline style="display:none">
+	<source src="video.mp4" type='video/ogg; codecs="theora, vorbis"'>
+	<source src="video.mp4" type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'>
+</video>
+		
+<!-- 
+  Example created by Lee Stemkoski: https://github.com/stemkoski
+  Based on the AR.js library and examples created by Jerome Etienne: https://github.com/jeromeetienne/AR.js/
+-->
 
-  <div id="controls">
-    <button id="btnStart">▶️ Iniciar AR</button>
-    <button id="btnUnmute" style="display:none">🔈 Activar sonido</button>
-    <button id="btnVR">🕶️ Activar VR</button>
-  </div>
+<script>
 
-  <a-scene
-    id="scene"
-    embedded
-    arjs="sourceType: webcam; debugUIEnabled: false; videoConstraints: {facingMode: 'environment'};"
-    vr-mode-ui="enabled: true"
-    renderer="logarithmicDepthBuffer: true; precision: medium; alpha: true;"
-    loading-screen="enabled: false">
+var scene, camera, renderer, clock, deltaTime, totalTime;
 
-    <!-- Assets -->
-    <a-assets timeout="60000">
-      <!-- IMPORTANTE: mismo origen (GitHub Pages) para evitar CORS en textura de video -->
-      <video id="muralvid"
-             src="video.mp4"
-             preload="auto"
-             loop
-             muted
-             playsinline
-             webkit-playsinline></video>
-    </a-assets>
+var arToolkitSource, arToolkitContext;
 
-    <a-entity camera></a-entity>
+var markerRoot1;
 
-    <a-marker preset="hiro">
-      <!-- Plano vacío: le inyectaremos un material con THREE.VideoTexture -->
-      <a-entity id="muralPlane"
-        geometry="primitive: plane; width: 2; height: 1.125"
-        position="0 0 0.01"
-        rotation="-90 0 0">
-      </a-entity>
+var mesh1;
 
-      <!-- Marco decorativo detrás (opcional) -->
-      <a-box position="0 0 -0.05" rotation="-90 0 0" width="2.2" height="1.3" depth="0.08" color="#654321"></a-box>
-    </a-marker>
-  </a-scene>
+initialize();
+animate();
 
-  <script>
-    let cameraStarted = false;
+function initialize()
+{
+	scene = new THREE.Scene();
 
-    const sceneEl   = document.getElementById('scene');
-    const planeEl   = document.getElementById('muralPlane');
-    const vid       = document.getElementById('muralvid');
-    const btnStart  = document.getElementById('btnStart');
-    const btnUnmute = document.getElementById('btnUnmute');
-    const btnVR     = document.getElementById('btnVR');
+	let ambientLight = new THREE.AmbientLight( 0xcccccc, 0.5 );
+	scene.add( ambientLight );
+				
+	camera = new THREE.Camera();
+	scene.add(camera);
 
-    // ===== Helper UI =====
-    function mostrarError(mensaje) {
-      const errorDiv = document.getElementById('error-msg');
-      const errorText = document.getElementById('error-text');
-      const loader = document.querySelector('.arjs-loader');
-      if (loader) loader.style.display = 'none';
-      errorText.textContent = mensaje;
-      errorDiv.style.display = 'block';
-    }
+	renderer = new THREE.WebGLRenderer({
+		antialias : true,
+		alpha: true
+	});
+	renderer.setClearColor(new THREE.Color('lightgrey'), 0)
+	renderer.setSize( 640, 480 );
+	renderer.domElement.style.position = 'absolute'
+	renderer.domElement.style.top = '0px'
+	renderer.domElement.style.left = '0px'
+	document.body.appendChild( renderer.domElement );
 
-    // ===== Mantener vivo el <video> de la CÁMARA (AR.js) =====
-    const ensureARCameraVideo = () => {
-      const vids = Array.from(document.querySelectorAll('video'));
-      const camV = vids.find(v => v !== vid && (v.srcObject || v.getAttribute('src') === ''));
-      if (!camV) return;
-      camV.setAttribute('autoplay',''); camV.autoplay = true;
-      camV.setAttribute('muted','');    camV.muted = true;
-      camV.setAttribute('playsinline',''); camV.playsInline = true;
-      const tryPlay = () => camV.play().catch(() => setTimeout(tryPlay, 400));
-      tryPlay();
-    };
-    new MutationObserver(ensureARCameraVideo).observe(document.body, {childList:true, subtree:true});
+	clock = new THREE.Clock();
+	deltaTime = 0;
+	totalTime = 0;
+	
+	////////////////////////////////////////////////////////////
+	// setup arToolkitSource
+	////////////////////////////////////////////////////////////
 
-    // ===== Crear material con THREE.VideoTexture y asignarlo al plano =====
-    function setVideoTextureOnPlane() {
-      const mesh = planeEl.getObject3D('mesh');
-      if (!mesh) {
-        // Espera a que el mesh exista
-        planeEl.addEventListener('object3dset', (e) => {
-          if (e.detail.type === 'mesh') setVideoTextureOnPlane();
-        }, {once:true});
-        return;
-      }
+	arToolkitSource = new THREEx.ArToolkitSource({
+		sourceType : 'webcam',
+	});
 
-      const texture = new THREE.VideoTexture(vid);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      texture.encoding  = THREE.sRGBEncoding; // se ve mejor en la mayoría de móviles
+	function onResize()
+	{
+		arToolkitSource.onResize()	
+		arToolkitSource.copySizeTo(renderer.domElement)	
+		if ( arToolkitContext.arController !== null )
+		{
+			arToolkitSource.copySizeTo(arToolkitContext.arController.canvas)	
+		}	
+	}
 
-      // Material básico sin iluminación para video
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        side: THREE.DoubleSide
-      });
+	arToolkitSource.init(function onReady(){
+		onResize()
+	});
+	
+	// handle resize event
+	window.addEventListener('resize', function(){
+		onResize()
+	});
+	
+	////////////////////////////////////////////////////////////
+	// setup arToolkitContext
+	////////////////////////////////////////////////////////////	
 
-      mesh.material = material;
-      mesh.material.needsUpdate = true;
-    }
+	// create atToolkitContext
+	arToolkitContext = new THREEx.ArToolkitContext({
+		cameraParametersUrl: 'data/camera_para.dat',
+		detectionMode: 'mono'
+	});
+	
+	// copy projection matrix to camera when initialization complete
+	arToolkitContext.init( function onCompleted(){
+		camera.projectionMatrix.copy( arToolkitContext.getProjectionMatrix() );
+	});
 
-    // ===== Ajustar tamaño del plano al aspecto del video =====
-    function fitPlaneToVideo() {
-      if (!vid.videoWidth || !vid.videoHeight) return;
-      const aspect = vid.videoWidth / vid.videoHeight; // ancho/alto
-      const baseW = 2;
-      const baseH = baseW / aspect;
-      planeEl.setAttribute('geometry', `primitive: plane; width: ${baseW}; height: ${baseH}`);
-      console.log('[AR] video aspect', aspect.toFixed(3), 'plane', baseW.toFixed(2)+'x'+baseH.toFixed(2));
-    }
+	////////////////////////////////////////////////////////////
+	// setup markerRoots
+	////////////////////////////////////////////////////////////
 
-    // ===== Eventos A-Frame / AR.js =====
-    sceneEl.addEventListener('camera-init', () => {
-      cameraStarted = true;
-      console.log('✓ Cámara iniciada correctamente');
-    });
-    window.addEventListener('arjs-video-loaded', () => {
-      console.log('✓ Video AR (cámara) cargado');
-      cameraStarted = true;
-    });
+	// build markerControls
+	markerRoot1 = new THREE.Group();
+	scene.add(markerRoot1);
+	let markerControls1 = new THREEx.ArMarkerControls(arToolkitContext, markerRoot1, {
+		type: 'pattern', patternUrl: "data/hiro.patt",
+	})
 
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        const loader = document.querySelector('.arjs-loader');
-        if (loader && cameraStarted) loader.style.display = 'none';
-      }, 1200);
-    });
+	let geometry1 = new THREE.PlaneBufferGeometry(2,2, 4,4);
 
-    setTimeout(() => {
-      const instrucciones = document.getElementById('instrucciones');
-      if (instrucciones && cameraStarted) {
-        instrucciones.style.transition = 'opacity 1s';
-        instrucciones.style.opacity = '0';
-        setTimeout(() => { instrucciones.style.display = 'none'; }, 1000);
-      }
-    }, 10000);
+	let video = document.getElementById( 'video' );
+	let texture = new THREE.VideoTexture( video );
+	texture.minFilter = THREE.LinearFilter;
+	texture.magFilter = THREE.LinearFilter;
+	texture.format = THREE.RGBFormat;
+	let material1 = new THREE.MeshBasicMaterial( { map: texture } );
+	
+	mesh1 = new THREE.Mesh( geometry1, material1 );
+	mesh1.rotation.x = -Math.PI/2;
+	
+	markerRoot1.add( mesh1 );
+}
 
-    // ===== Fallback permisos =====
-    setTimeout(() => {
-      if (!cameraStarted && navigator.mediaDevices?.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }, audio:false })
-          .then(stream => { console.log('✓ Permisos de cámara OK'); stream.getTracks().forEach(t=>t.stop()); })
-          .catch(err => {
-            console.error('Error de cámara:', err);
-            let msg = '';
-            if (err.name === 'NotAllowedError')      msg = 'Permisos denegados. Ajustes → Apps → Chrome → Permisos → Cámara';
-            else if (err.name === 'NotReadableError') msg = 'La cámara está en uso por otra app. Cierra todas las apps y recarga.';
-            else if (err.name === 'NotFoundError')     msg = 'No se encontró ninguna cámara en el dispositivo.';
-            else msg = `Error: ${err.name} - ${err.message}`;
-            mostrarError(msg);
-          });
-      }
-    }, 3000);
 
-    // ===== Iniciar AR + reproducir VIDEO del mural =====
-    btnStart.addEventListener('click', () => {
-      // Reglas para autoplay móvil
-      vid.setAttribute('muted',''); vid.muted = true;
-      vid.setAttribute('playsinline',''); vid.playsInline = true;
-      vid.setAttribute('autoplay','');
+function update()
+{
+	// update artoolkit on every frame
+	if ( arToolkitSource.ready !== false )
+		arToolkitContext.update( arToolkitSource.domElement );
+}
 
-      // Asignar la VideoTexture al plano
-      setVideoTextureOnPlane();
 
-      // Reproducir video con reintentos
-      const tryPlayMural = () => vid.play().catch(() => setTimeout(tryPlayMural, 300));
-      tryPlayMural();
+function render()
+{
+	renderer.render( scene, camera );
+}
 
-      // Ajustar tamaño cuando haya metadata
-      if (vid.readyState >= 1) fitPlaneToVideo();
-      vid.addEventListener('loadedmetadata', fitPlaneToVideo, {once:true});
 
-      // Mantener vivo video de cámara también
-      setTimeout(ensureARCameraVideo, 400);
+function animate()
+{
+	requestAnimationFrame(animate);
+	deltaTime = clock.getDelta();
+	totalTime += deltaTime;
+	update();
+	render();
+}
 
-      // Mostrar control de audio
-      btnUnmute.style.display = 'inline-block';
-    });
+</script>
 
-    // ===== Activar/Silenciar audio del mural =====
-    btnUnmute.addEventListener('click', async () => {
-      try {
-        vid.muted = !vid.muted;
-        await vid.play();
-        btnUnmute.textContent = vid.muted ? '🔈 Activar sonido' : '🔇 Silenciar';
-      } catch (e) {
-        console.warn('No se pudo alternar sonido:', e?.name || e?.message || e);
-      }
-    });
-
-    // ===== Activar / Salir VR =====
-    const updateVRLabel = () => { btnVR.textContent = sceneEl.is('vr-mode') ? '↩️ Salir VR' : '🕶️ Activar VR'; };
-    btnVR.addEventListener('click', () => { if (sceneEl.is('vr-mode')) sceneEl.exitVR(); else sceneEl.enterVR(); });
-    sceneEl.addEventListener('enter-vr', updateVRLabel);
-    sceneEl.addEventListener('exit-vr',  updateVRLabel);
-    updateVRLabel();
-
-    // ===== Si se pierde WebGL, recarga =====
-    sceneEl.addEventListener('webglcontextlost', (e) => {
-      console.warn('[AR] WebGL context lost, reloading...');
-      e.preventDefault();
-      setTimeout(() => location.reload(), 300);
-    }, false);
-  </script>
 </body>
 </html>
 
