@@ -51,6 +51,59 @@
     <source src="video.mp4" type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'>
   </video>
 
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <title>EMI Aniversario 75 años</title>
+
+  <!-- Librerrias para la camara y deteccion de AR -->
+  <script src="three.js"></script>
+  <script src="artoolkit.min.js"></script>
+  <script src="artoolkit.api.js"></script>
+  <script src="threex-artoolkitsource.js"></script>
+  <script src="threex-artoolkitcontext.js"></script>
+  <script src="threex-arbasecontrols.js"></script>
+  <script src="threex-armarkercontrols.js"></script>
+
+  <style>
+    body { margin:0; overflow:hidden; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, Monospace; background:#000; }
+    #ui {
+      position:fixed; left:0; right:0; bottom:10px; z-index:10;
+      display:flex; gap:10px; justify-content:center; align-items:center;
+    }
+    #ui button {
+      padding:10px 12px; border:0; border-radius:10px; cursor:pointer;
+      font-weight:600; background:rgba(255,255,255,.15); color:#fff; backdrop-filter:blur(4px);
+    }
+    #hud {
+      position:fixed; top:10px; left:50%; transform:translateX(-50%);
+      background:rgba(0,0,0,.55); color:#fff; padding:8px 14px; border-radius:10px; z-index:10;
+    }
+    canvas { position:fixed; inset:0; width:100vw; height:100vh; display:block; }
+    /* Ocultamos el tag de video fuente */
+    #video { display:none; }
+  </style>
+</head>
+
+<body>
+
+  <div id="hud"><b>Mural AR</b> · Apunta al marcador <b>Hiro</b></div>
+
+  <!-- Controles -->
+  <div id="ui">
+    <button id="btnPlay">⏯ Reproducir</button>
+    <button id="btnMute">🔈 Activar sonido</button>
+    <button id="btnRestart">⟲ Reiniciar</button>
+    <button id="btnVR">🕶️ Activar VR v2</button>
+  </div>
+
+  <video id="video" autoplay loop playsinline webkit-playsinline muted crossorigin="anonymous">
+
+    <source src="video.mp4" type='video/ogg; codecs="theora, vorbis"'>
+    <source src="video.mp4" type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'>
+  </video>
+
 <script>
 //VARIABLES
 var scene, camera, renderer, clock, deltaTime, totalTime;
@@ -290,6 +343,9 @@ function animate() {
   render();
 }
 </script>
+
+</body>
+</html>
 
 </body>
 </html>
