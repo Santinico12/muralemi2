@@ -4,7 +4,7 @@
   <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
   <title>EMI Aniversario 75 años</title>
 
-  <!-- Librerrias para la camara y deteccion de AR -->
+  <!-- Librerías locales -->
   <script src="three.js"></script>
   <script src="artoolkit.min.js"></script>
   <script src="artoolkit.api.js"></script>
@@ -14,120 +14,67 @@
   <script src="threex-armarkercontrols.js"></script>
 
   <style>
-    body { margin:0; overflow:hidden; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, Monospace; background:#000; }
+    :root { color-scheme: dark; }
+    body { margin:0; overflow:hidden; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,Monospace; background:#000; }
+    #hud {
+      position:fixed; top:10px; left:50%; transform:translateX(-50%);
+      background:rgba(0,0,0,.55); color:#fff; padding:8px 14px; border-radius:10px; z-index:20;
+      pointer-events:auto;
+    }
     #ui {
-      position:fixed; left:0; right:0; bottom:10px; z-index:10;
+      position:fixed; left:0; right:0; bottom:10px; z-index:20;
       display:flex; gap:10px; justify-content:center; align-items:center;
+      pointer-events:auto;
     }
     #ui button {
       padding:10px 12px; border:0; border-radius:10px; cursor:pointer;
       font-weight:600; background:rgba(255,255,255,.15); color:#fff; backdrop-filter:blur(4px);
     }
-    #hud {
-      position:fixed; top:10px; left:50%; transform:translateX(-50%);
-      background:rgba(0,0,0,.55); color:#fff; padding:8px 14px; border-radius:10px; z-index:10;
+    canvas {
+      position:fixed; inset:0; width:100vw; height:100vh; display:block;
+      z-index:0; pointer-events:none; /* IMPORTANTE: no tapar los botones */
     }
-    canvas { position:fixed; inset:0; width:100vw; height:100vh; display:block; }
-    /* Ocultamos el tag de video fuente */
     #video { display:none; }
   </style>
 </head>
-
 <body>
 
   <div id="hud"><b>Mural AR</b> · Apunta al marcador <b>Hiro</b></div>
 
-  <!-- Controles -->
   <div id="ui">
-    <button id="btnPlay">⏯ Reproducir</button>
-    <button id="btnMute">🔈 Activar sonido</button>
-    <button id="btnRestart">⟲ Reiniciar</button>
-    <button id="btnVR">🕶️ Activar VR v2</button>
+    <button id="btnPlay"    type="button">⏯ Reproducir</button>
+    <button id="btnMute"    type="button">🔈 Activar sonido</button>
+    <button id="btnRestart" type="button">⟲ Reiniciar</button>
+    <button id="btnVR"      type="button">🕶️ Activar VR</button>
   </div>
 
   <video id="video" autoplay loop playsinline webkit-playsinline muted crossorigin="anonymous">
-
-    <source src="video.mp4" type='video/ogg; codecs="theora, vorbis"'>
-    <source src="video.mp4" type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'>
-  </video>
-
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-  <title>EMI Aniversario 75 años</title>
-
-  <!-- Librerrias para la camara y deteccion de AR -->
-  <script src="three.js"></script>
-  <script src="artoolkit.min.js"></script>
-  <script src="artoolkit.api.js"></script>
-  <script src="threex-artoolkitsource.js"></script>
-  <script src="threex-artoolkitcontext.js"></script>
-  <script src="threex-arbasecontrols.js"></script>
-  <script src="threex-armarkercontrols.js"></script>
-
-  <style>
-    body { margin:0; overflow:hidden; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, Monospace; background:#000; }
-    #ui {
-      position:fixed; left:0; right:0; bottom:10px; z-index:10;
-      display:flex; gap:10px; justify-content:center; align-items:center;
-    }
-    #ui button {
-      padding:10px 12px; border:0; border-radius:10px; cursor:pointer;
-      font-weight:600; background:rgba(255,255,255,.15); color:#fff; backdrop-filter:blur(4px);
-    }
-    #hud {
-      position:fixed; top:10px; left:50%; transform:translateX(-50%);
-      background:rgba(0,0,0,.55); color:#fff; padding:8px 14px; border-radius:10px; z-index:10;
-    }
-    canvas { position:fixed; inset:0; width:100vw; height:100vh; display:block; }
-    /* Ocultamos el tag de video fuente */
-    #video { display:none; }
-  </style>
-</head>
-
-<body>
-
-  <div id="hud"><b>Mural AR</b> · Apunta al marcador <b>Hiro</b></div>
-
-  <!-- Controles -->
-  <div id="ui">
-    <button id="btnPlay">⏯ Reproducir</button>
-    <button id="btnMute">🔈 Activar sonido</button>
-    <button id="btnRestart">⟲ Reiniciar</button>
-    <button id="btnVR">🕶️ Activar VR v2</button>
-  </div>
-
-  <video id="video" autoplay loop playsinline webkit-playsinline muted crossorigin="anonymous">
-
     <source src="video.mp4" type='video/ogg; codecs="theora, vorbis"'>
     <source src="video.mp4" type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'>
   </video>
 
 <script>
-//VARIABLES
+// ================== VARIABLES ==================
 var scene, camera, renderer, clock, deltaTime, totalTime;
 var arToolkitSource, arToolkitContext;
 var markerRoot1, mesh1;
 var videoEl, videoTex;
 
-//PARA VR
+// VR (Cardboard estéreo)
 var stereoMode = false;
-var IPD = 0.064; // ~64 mm
+var IPD = 0.064;
 var stereoCams = { left: null, right: null };
 
-/* BOTONES DE UI*/
-var btnPlay, btnMute, btnRestart, btnVR;
+// UI
+var btnPlay = null, btnMute = null, btnRestart = null, btnVR = null;
 
-initialize();
+init();
 animate();
 
-/* INICIALIZARR */
-function initialize() {
+// ================== INIT ==================
+function init() {
   scene = new THREE.Scene();
-
-  let ambientLight = new THREE.AmbientLight(0xcccccc, 0.5);
-  scene.add(ambientLight);
+  scene.add(new THREE.AmbientLight(0xcccccc, 0.5));
 
   camera = new THREE.Camera();
   scene.add(camera);
@@ -135,15 +82,14 @@ function initialize() {
   renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
   renderer.setClearColor(new THREE.Color('lightgrey'), 0);
   renderer.setSize(640, 480);
-  renderer.domElement.style.position = 'absolute';
-  renderer.domElement.style.top = '0px';
-  renderer.domElement.style.left = '0px';
+  // el canvas ya está estilizado por CSS (fullscreen + pointer-events:none)
   document.body.appendChild(renderer.domElement);
 
   clock = new THREE.Clock();
   deltaTime = 0;
   totalTime = 0;
 
+  // ---- ARToolkit Source ----
   arToolkitSource = new THREEx.ArToolkitSource({ sourceType: 'webcam' });
 
   function onResize() {
@@ -153,31 +99,29 @@ function initialize() {
       arToolkitSource.copySizeTo(arToolkitContext.arController.canvas);
     }
   }
-
-  arToolkitSource.init(function onReady() { onResize(); });
+  arToolkitSource.init(onResize);
   window.addEventListener('resize', onResize);
 
+  // ---- ARToolkit Context ----
   arToolkitContext = new THREEx.ArToolkitContext({
-    cameraParametersUrl: 'camera_para.dat', 
+    cameraParametersUrl: 'camera_para.dat',
     detectionMode: 'mono'
   });
-
-  arToolkitContext.init(function onCompleted() {
+  arToolkitContext.init(function() {
     camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
   });
 
+  // ---- Marker ----
   markerRoot1 = new THREE.Group();
   scene.add(markerRoot1);
-  let markerControls1 = new THREEx.ArMarkerControls(arToolkitContext, markerRoot1, {
+  new THREEx.ArMarkerControls(arToolkitContext, markerRoot1, {
     type: 'pattern', patternUrl: 'hiro.patt'
   });
 
+  // ---- Plano con VideoTexture ----
   var geometry1 = new THREE.PlaneBufferGeometry(2, 2, 4, 4);
-
   videoEl = document.getElementById('video');
- 
-  videoEl.muted = true;
-  videoEl.playsInline = true;
+  videoEl.muted = true; videoEl.playsInline = true;
 
   videoTex = new THREE.VideoTexture(videoEl);
   videoTex.minFilter = THREE.LinearFilter;
@@ -185,113 +129,103 @@ function initialize() {
   videoTex.format    = THREE.RGBFormat;
 
   var material1 = new THREE.MeshBasicMaterial({ map: videoTex, side: THREE.DoubleSide });
-
   mesh1 = new THREE.Mesh(geometry1, material1);
   mesh1.rotation.x = -Math.PI / 2;
   markerRoot1.add(mesh1);
 
-  wireUI();
+  bindUI();
 }
 
-function wireUI() {
-  btnPlay    = document.getElementById('btnPlay');
-  btnMute    = document.getElementById('btnMute');
-  btnRestart = document.getElementById('btnRestart');
-  btnVR      = document.getElementById('btnVR');
+// ================== UI ==================
+function bindUI() {
+  // Coge SIEMPRE el primero del documento (por si alguien duplica ids accidentalmente)
+  btnPlay    = document.querySelector('#btnPlay');
+  btnMute    = document.querySelector('#btnMute');
+  btnRestart = document.querySelector('#btnRestart');
+  btnVR      = document.querySelector('#btnVR');
 
-  updatePlayLabel();
-  updateMuteLabel();
-  updateVRLabel();
+  // Evitar que el canvas intercepte eventos (ya puesto en CSS), reforzamos:
+  renderer.domElement.style.pointerEvents = 'none';
 
-  btnPlay.addEventListener('click', async function () {
-    try {
-      if (videoEl.paused) {
-        await videoEl.play();
-      } else {
-        videoEl.pause();
-      }
-      updatePlayLabel();
-    } catch (e) { console.warn('play/pause error', e); }
+  // Asegurar que los botones sí reciban clicks
+  [btnPlay, btnMute, btnRestart, btnVR].forEach(b=>{
+    if (b) { b.style.pointerEvents = 'auto'; b.style.zIndex = 20; }
   });
 
-  btnMute.addEventListener('click', async function () {
-    try {
-      videoEl.muted = !videoEl.muted;
-      await videoEl.play().catch(()=>{});
-      updateMuteLabel();
-    } catch (e) { console.warn('mute toggle error', e); }
+  updatePlayLabel(); updateMuteLabel(); updateVRLabel();
+
+  btnPlay.addEventListener('click', async function (e) {
+    e.preventDefault();
+    try { videoEl.paused ? await videoEl.play() : videoEl.pause(); } catch(e){}
+    updatePlayLabel();
   });
 
-  btnRestart.addEventListener('click', async function () {
-    try {
-      videoEl.currentTime = 0;
-      await videoEl.play().catch(()=>{});
-      updatePlayLabel();
-    } catch (e) { console.warn('restart error', e); }
+  btnMute.addEventListener('click', async function (e) {
+    e.preventDefault();
+    try { videoEl.muted = !videoEl.muted; await videoEl.play().catch(()=>{}); } catch(e){}
+    updateMuteLabel();
   });
 
-  btnVR.addEventListener('click', function () {
+  btnRestart.addEventListener('click', async function (e) {
+    e.preventDefault();
+    try { videoEl.currentTime = 0; await videoEl.play().catch(()=>{}); } catch(e){}
+    updatePlayLabel();
+  });
+
+  btnVR.addEventListener('click', function (e) {
+    e.preventDefault();
     stereoMode = !stereoMode;
-    if (stereoMode && (!stereoCams.left || !stereoCams.right)) {
-      setupStereoCameras();
-    }
+    if (stereoMode && (!stereoCams.left || !stereoCams.right)) setupStereoCameras();
     if (!stereoMode) teardownStereoCameras();
     updateVRLabel();
   });
 
+  // Re-intentar play al volver a foreground (móvil)
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && videoEl.paused) videoEl.play().catch(()=>{});
   });
 
+  // Ajustar plano al aspecto del video
   videoEl.addEventListener('loadedmetadata', fitPlaneToVideo, { once:true });
   if (videoEl.readyState >= 1) fitPlaneToVideo();
+
+  console.log('[UI] listeners listos');
 }
 
-function updatePlayLabel() {
-  btnPlay.textContent = videoEl && !videoEl.paused ? '⏸ Pausar' : '▶️ Reproducir';
-}
-
-function updateMuteLabel() {
-  btnMute.textContent = videoEl && !videoEl.muted ? '🔇 Silenciar' : '🔈 Activar sonido';
-}
-
-function updateVRLabel() {
-  btnVR.textContent = stereoMode ? '↩️ Salir VR' : '🕶️ Activar VR';
-}
+function updatePlayLabel() { btnPlay.textContent = (!videoEl || videoEl.paused) ? '▶️ Reproducir' : '⏸ Pausar'; }
+function updateMuteLabel() { btnMute.textContent = (videoEl && !videoEl.muted) ? '🔇 Silenciar' : '🔈 Activar sonido'; }
+function updateVRLabel()   { btnVR.textContent   = stereoMode ? '↩️ Salir VR' : '🕶️ Activar VR'; }
 
 function fitPlaneToVideo() {
   if (!videoEl.videoWidth || !videoEl.videoHeight) return;
   var aspect = videoEl.videoWidth / videoEl.videoHeight;
-  var W = 2;             // ancho del mural
-  var H = W / aspect;    // altura
+  var W = 2, H = W / aspect;
   mesh1.geometry.dispose();
   mesh1.geometry = new THREE.PlaneBufferGeometry(W, H, 4, 4);
   mesh1.geometry.needsUpdate = true;
 }
 
+// ================== VR/Cardboard (estéreo) ==================
 function setupStereoCameras() {
   stereoCams.left  = new THREE.PerspectiveCamera();
   stereoCams.right = new THREE.PerspectiveCamera();
 }
-
 function teardownStereoCameras() {
   stereoCams.left = stereoCams.right = null;
   renderer.setScissorTest(false);
 }
 
+// ================== BUCLE ==================
 function update() {
   if (arToolkitSource.ready !== false) {
     arToolkitContext.update(arToolkitSource.domElement);
   }
 }
 
+// inversa compatible (three viejo/reciente)
 function setInverse(target, source) {
-  // three r123+ tiene invert(); r110 usa getInverse()
-  if (typeof target.invert === 'function') {
-    target.copy(source).invert();
-  } else {
-    target.getInverse(source);
-  }
+  if (typeof target.invert === 'function') target.copy(source).invert();  // r123+
+  else target.getInverse(source);                                         // r110…
 }
 
 function render() {
@@ -305,26 +239,22 @@ function render() {
   var h = renderer.domElement.height;
   renderer.setScissorTest(true);
 
-  // Copia proyección de la cámara AR a ambos ojos
+  // Proyección AR a cada ojo
   stereoCams.left.projectionMatrix.copy(camera.projectionMatrix);
   stereoCams.right.projectionMatrix.copy(camera.projectionMatrix);
 
-  // Parte de la pose AR
+  // Pose base + separación IPD
   stereoCams.left.matrixWorld.copy(camera.matrixWorld);
   stereoCams.right.matrixWorld.copy(camera.matrixWorld);
-
-  // Desplaza un poco cada ojo en X (IPD/2)
   var halfIPD = IPD * 0.5;
-
-  // Ajuste directo en la matriz de mundo (fila de traslación: índices 12,13,14)
-  stereoCams.left.matrixWorld.elements[12]  -= halfIPD;
+  stereoCams.left.matrixWorld.elements[12]  -= halfIPD;  // X
   stereoCams.right.matrixWorld.elements[12] += halfIPD;
 
-  // Calcula las inversas (compatibles con tu versión de Three)
+  // Inversas
   setInverse(stereoCams.left.matrixWorldInverse,  stereoCams.left.matrixWorld);
   setInverse(stereoCams.right.matrixWorldInverse, stereoCams.right.matrixWorld);
 
-  // Render de cada ojo
+  // Render ojos
   renderer.setViewport(0, 0, w/2, h);
   renderer.setScissor(0, 0, w/2, h);
   renderer.render(scene, stereoCams.left);
@@ -334,7 +264,6 @@ function render() {
   renderer.render(scene, stereoCams.right);
 }
 
-
 function animate() {
   requestAnimationFrame(animate);
   deltaTime = clock.getDelta();
@@ -343,7 +272,6 @@ function animate() {
   render();
 }
 </script>
-
-
 </body>
 </html>
+
