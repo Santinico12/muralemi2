@@ -53,17 +53,16 @@
 
 <script>
 /* ================== VARIABLES ================== */
-var scene, camera, renderer, clock, deltaTime, totalTime;
+var scene, camera, renderer, clock;
 var arToolkitSource, arToolkitContext;
 var markerRoot1, mesh1;
 var videoEl, videoTex;
 
+/* Background de cámara (para VR/XR) */
+var bgScene=null, bgCamera=null, bgMesh=null, bgTex=null;
+
 /* XR / VR */
-var xrSupported = false;
-var xrSession   = null;
-var xrRefSpace  = null;
-var usingXRLoop = false;
-var xrGl        = null;
+var xrSupported = false, xrSession = null, xrRefSpace = null, usingXRLoop = false, xrGl = null;
 
 /* Fallback Cardboard */
 var stereoMode = false;
@@ -87,13 +86,12 @@ function init() {
   renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
   renderer.setClearColor(new THREE.Color('lightgrey'), 0);
   renderer.setSize(640, 480);
+  renderer.autoClear = true;
   document.body.appendChild(renderer.domElement);
 
-  // Contexto WebGL compatible con XR (aunque tu three sea viejo)
   xrGl = renderer.getContext();
   if (xrGl && xrGl.makeXRCompatible) { xrGl.makeXRCompatible().catch(()=>{}); }
 
-  // Descubrir soporte WebXR
   if (navigator.xr && navigator.xr.isSessionSupported) {
     navigator.xr.isSessionSupported('immersive-vr')
       .then(s => { xrSupported = !!s; console.log('[XR] immersive-vr soportado:', xrSupported); })
@@ -101,10 +99,10 @@ function init() {
   }
 
   clock = new THREE.Clock();
-  deltaTime = 0; totalTime = 0;
 
   /* ---- ARToolkit Source ---- */
   arToolkitSource = new THREEx.ArToolkitSource({ sourceType: 'webcam' });
+
   function onResize() {
     arToolkitSource.onResize();
     arToolkitSource.copySizeTo(renderer.domElement);
@@ -112,7 +110,11 @@ function init() {
       arToolkitSource.copySizeTo(arToolkitContext.arController.canvas);
     }
   }
-  arToolkitSource.init(onResize);
+  arToolkitSource.init(function(){
+    onResize();
+    // cuando exista el <video> de la cámara, preparo el background interno
+    setupARBackground();
+  });
   window.addEventListener('resize', onResize);
 
   /* ---- ARToolkit Context ---- */
@@ -131,7 +133,7 @@ function init() {
     type: 'pattern', patternUrl: 'hiro.patt'
   });
 
-  /* ---- Plano con VideoTexture ---- */
+  /* ---- Plano con VideoTexture (tu video.mp4) ---- */
   var geometry1 = new THREE.PlaneBufferGeometry(2, 2, 4, 4);
   videoEl = document.getElementById('video');
   videoEl.muted = true; videoEl.playsInline = true;
@@ -149,6 +151,27 @@ function init() {
   bindUI();
 }
 
+/* ===== Background interno con el video de la CÁMARA ===== */
+function setupARBackground(){
+  if (bgMesh || !arToolkitSource || !arToolkitSource.domElement) return;
+  // usar el <video> que crea THREEx.ArToolkitSource
+  var camVideo = arToolkitSource.domElement; // HTMLVideoElement
+  bgTex = new THREE.VideoTexture(camVideo);
+  bgTex.minFilter = THREE.LinearFilter;
+  bgTex.magFilter = THREE.LinearFilter;
+  bgTex.format    = THREE.RGBFormat;
+  bgTex.colorSpace = THREE.SRGBColorSpace || undefined;
+
+  bgScene  = new THREE.Scene();
+  bgCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); // clip-space
+  var geo  = new THREE.PlaneBufferGeometry(2, 2);
+  var mat  = new THREE.MeshBasicMaterial({ map: bgTex, depthTest:false, depthWrite:false });
+  bgMesh   = new THREE.Mesh(geo, mat);
+  bgScene.add(bgMesh);
+
+  console.log('[BG] background de cámara listo');
+}
+
 /* ================== UI ================== */
 function bindUI() {
   btnPlay    = document.getElementById('btnPlay');
@@ -156,26 +179,26 @@ function bindUI() {
   btnRestart = document.getElementById('btnRestart');
   btnVR      = document.getElementById('btnVR');
 
-  renderer.domElement.style.pointerEvents = 'none'; // que no tape clicks
+  renderer.domElement.style.pointerEvents = 'none';
   [btnPlay, btnMute, btnRestart, btnVR].forEach(b => { if (b) { b.style.pointerEvents='auto'; b.style.zIndex=20; }});
 
   updatePlayLabel(); updateMuteLabel(); updateVRLabel();
 
   btnPlay.addEventListener('click', async (e) => {
     e.preventDefault();
-    try { videoEl.paused ? await videoEl.play() : videoEl.pause(); } catch(_) {}
+    try { videoEl.paused ? await videoEl.play() : videoEl.pause(); } catch(_){}
     updatePlayLabel();
   });
 
   btnMute.addEventListener('click', async (e) => {
     e.preventDefault();
-    try { videoEl.muted = !videoEl.muted; await videoEl.play().catch(()=>{}); } catch(_) {}
+    try { videoEl.muted = !videoEl.muted; await videoEl.play().catch(()=>{}); } catch(_){}
     updateMuteLabel();
   });
 
   btnRestart.addEventListener('click', async (e) => {
     e.preventDefault();
-    try { videoEl.currentTime = 0; await videoEl.play().catch(()=>{}); } catch(_) {}
+    try { videoEl.currentTime = 0; await videoEl.play().catch(()=>{}); } catch(_){}
     updatePlayLabel();
   });
 
@@ -211,14 +234,14 @@ function fitPlaneToVideo() {
 function isInXR(){ return !!xrSession; }
 
 async function enterVR() {
-  // 1) Intentar WebXR inmersivo (como A-Frame enterVR)
+  setupARBackground(); // asegurar que existe
+
   if (xrSupported && navigator.xr) {
     try {
       xrSession = await navigator.xr.requestSession('immersive-vr', {
-        optionalFeatures: ['local', 'local-floor', 'bounded-floor']
+        optionalFeatures: ['local','local-floor','bounded-floor']
       });
 
-      // Canvas compatible con XR y capa base
       xrGl = renderer.getContext();
       if (xrGl.makeXRCompatible) await xrGl.makeXRCompatible();
       xrSession.updateRenderState({ baseLayer: new XRWebGLLayer(xrSession, xrGl) });
@@ -226,9 +249,8 @@ async function enterVR() {
       xrRefSpace = await xrSession.requestReferenceSpace('local');
 
       usingXRLoop = true;
-      xrSession.requestAnimationFrame(onXRFrame); // loop XR
+      xrSession.requestAnimationFrame(onXRFrame);
 
-      // Sugerir landscape + fullscreen (como hace A-Frame en móvil)
       try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape'); } catch(_){}
       try {
         var el = document.documentElement;
@@ -239,27 +261,25 @@ async function enterVR() {
         usingXRLoop = false;
         xrSession = null;
         try { document.fullscreenElement && document.exitFullscreen(); } catch(_){}
-        animate();            // vuelve loop normal
+        animate();
         updateVRLabel();
       });
 
       console.log('[XR] Sesión immersive-vr iniciada');
-      return; // listo
+      return;
     } catch (e) {
       console.warn('[XR] Falló immersive-vr, uso fallback Cardboard:', e);
     }
   }
 
-  // 2) Fallback Cardboard (split-screen)
+  // Fallback Cardboard
   stereoMode = true;
   if (!stereoCams.left || !stereoCams.right) setupStereoCameras();
   console.log('[Stereo] Cardboard ON');
 }
 
 async function exitVR() {
-  if (xrSession) { try { await xrSession.end(); } catch(_){}
-    xrSession = null;
-  }
+  if (xrSession) { try { await xrSession.end(); } catch(_){} xrSession = null; }
   stereoMode = false;
   renderer.setScissorTest(false);
   usingXRLoop = false;
@@ -267,43 +287,39 @@ async function exitVR() {
   console.log('[VR] OFF');
 }
 
+/* Loop XR: pintamos primero el FONDO (video de cámara), luego la escena */
 function onXRFrame(time, frame) {
   if (!xrSession) return;
   xrSession.requestAnimationFrame(onXRFrame);
 
+  update(); // ARToolkit tracking
+
   const pose = frame.getViewerPose(xrRefSpace);
   if (!pose) return;
-
-  // ARToolkit sigue actualizando (webcam) aunque estés en VR
-  update();
 
   const baseLayer = xrSession.renderState.baseLayer;
   const gl = xrGl;
   gl.bindFramebuffer(gl.FRAMEBUFFER, baseLayer.framebuffer);
 
-  // Renderizamos por cada "view" (ojo) con el mismo scene, ajustando proyección.
   for (const view of pose.views) {
     const vp = baseLayer.getViewport(view);
     renderer.setViewport(vp.x, vp.y, vp.width, vp.height);
     renderer.setScissor(vp.x, vp.y, vp.width, vp.height);
 
-    // Proyección del ojo (como hace A-Frame)
-    camera.projectionMatrix.fromArray(view.projectionMatrix);
+    // 1) Fondo: video de la CÁMARA (AR) en 2D
+    if (bgScene) renderer.render(bgScene, bgCamera);
 
-    // Vista: usar la inversa del transform del ojo como matrixWorld (equivale a cámara en world)
-    const inv = view.transform.inverse.matrix; // Float32Array[16]
-    const m = new THREE.Matrix4().fromArray(inv);
-    camera.matrixWorld.copy(m);
-    if (typeof camera.matrixWorldInverse.invert === 'function')
-      camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
-    else
-      camera.matrixWorldInverse.getInverse(camera.matrixWorld);
+    // 2) Proyección del ojo (opcional; con ARToolkit la dejamos como está)
+    //    Si quieres head-tracking, descomenta estas dos líneas:
+    // camera.projectionMatrix.fromArray(view.projectionMatrix);
+    // const inv = view.transform.inverse.matrix; camera.matrixWorld.fromArray(inv);
 
+    // 3) Escena con el video.mp4 sobre el marcador
     renderer.render(scene, camera);
   }
 }
 
-/* ================== Fallback Cardboard ================== */
+/* ================== Fallback Cardboard (split-screen) ================== */
 function setupStereoCameras() {
   stereoCams.left  = new THREE.PerspectiveCamera();
   stereoCams.right = new THREE.PerspectiveCamera();
@@ -326,53 +342,46 @@ function setInverse(target, source) {
 }
 
 function render() {
-  // si estamos en XR, el render sucede en onXRFrame()
+  // En XR renderizamos dentro de onXRFrame()
   if (usingXRLoop && isInXR()) return;
 
-  // Fallback Cardboard
+  // Normal (no XR) o Fallback Cardboard
   if (!stereoMode || !stereoCams.left) {
     renderer.setScissorTest(false);
+    // Pintar background de cámara también fuera de XR (para consistencia)
+    if (bgScene) {
+      renderer.autoClear = true;
+      renderer.clear();
+      renderer.render(bgScene, bgCamera);
+    }
     renderer.render(scene, camera);
     return;
   }
 
+  // Cardboard estéreo
   var w = renderer.domElement.width, h = renderer.domElement.height;
   renderer.setScissorTest(true);
 
-  stereoCams.left.projectionMatrix.copy(camera.projectionMatrix);
-  stereoCams.right.projectionMatrix.copy(camera.projectionMatrix);
-
-  stereoCams.left.matrixWorld.copy(camera.matrixWorld);
-  stereoCams.right.matrixWorld.copy(camera.matrixWorld);
-  var halfIPD = IPD * 0.5;
-  stereoCams.left.matrixWorld.elements[12]  -= halfIPD;
-  stereoCams.right.matrixWorld.elements[12] += halfIPD;
-
-  setInverse(stereoCams.left.matrixWorldInverse,  stereoCams.left.matrixWorld);
-  setInverse(stereoCams.right.matrixWorldInverse, stereoCams.right.matrixWorld);
-
+  // Ojo izquierdo
   renderer.setViewport(0, 0, w/2, h);
   renderer.setScissor(0, 0, w/2, h);
-  renderer.render(scene, stereoCams.left);
+  if (bgScene) renderer.render(bgScene, bgCamera);
+  renderer.render(scene, camera);
 
+  // Ojo derecho
   renderer.setViewport(w/2, 0, w/2, h);
   renderer.setScissor(w/2, 0, w/2, h);
-  renderer.render(scene, stereoCams.right);
+  if (bgScene) renderer.render(bgScene, bgCamera);
+  renderer.render(scene, camera);
 }
 
 function animate() {
-  // si XR está activo, usamos su loop
-  if (usingXRLoop && isInXR()) return;
-
+  if (usingXRLoop && isInXR()) return; // XR tiene su propio loop
   requestAnimationFrame(animate);
-  deltaTime = clock.getDelta();
-  totalTime += deltaTime;
+  clock.getDelta(); // delta no es crítico aquí
   update();
   render();
 }
 </script>
 </body>
 </html>
-
-
-
