@@ -248,23 +248,29 @@ function render() {
 
   stereoCams.left.matrixWorld.copy(camera.matrixWorld);
   stereoCams.right.matrixWorld.copy(camera.matrixWorld);
-
-  var halfIPD = IPD * 0.5;
+  
+  const halfIPD = IPD * 0.5;
   stereoCams.left.translateX(-halfIPD);
   stereoCams.right.translateX(halfIPD);
 
   stereoCams.left.matrixWorldInverse.copy(stereoCams.left.matrixWorld).invert();
   stereoCams.right.matrixWorldInverse.copy(stereoCams.right.matrixWorld).invert();
 
-  // Ojo izquierdo
-  renderer.setViewport(0, 0, w/2, h);
-  renderer.setScissor(0, 0, w/2, h);
-  renderer.render(scene, stereoCams.left);
-
-  // Ojo derecho
-  renderer.setViewport(w/2, 0, w/2, h);
-  renderer.setScissor(w/2, 0, w/2, h);
-  renderer.render(scene, stereoCams.right);
+  // OJO IZQUIERDO
+  if (stereoCams.left.matrixWorldInverse.invert) {
+    // three >= r123 aprox.
+    stereoCams.left.matrixWorldInverse.copy(stereoCams.left.matrixWorld).invert();
+  } else {
+    // three r110…r122
+    stereoCams.left.matrixWorldInverse.getInverse(stereoCams.left.matrixWorld);
+  }
+  
+  // OJO DERECHO
+  if (stereoCams.right.matrixWorldInverse.invert) {
+    stereoCams.right.matrixWorldInverse.copy(stereoCams.right.matrixWorld).invert();
+  } else {
+    stereoCams.right.matrixWorldInverse.getInverse(stereoCams.right.matrixWorld);
+  }
 }
 
 function animate() {
