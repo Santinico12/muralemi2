@@ -232,6 +232,15 @@ function update() {
   }
 }
 
+function setInverse(target, source) {
+  // three r123+ tiene invert(); r110 usa getInverse()
+  if (typeof target.invert === 'function') {
+    target.copy(source).invert();
+  } else {
+    target.getInverse(source);
+  }
+}
+
 function render() {
   if (!stereoMode || !stereoCams.left) {
     renderer.setScissorTest(false);
@@ -243,35 +252,35 @@ function render() {
   var h = renderer.domElement.height;
   renderer.setScissorTest(true);
 
+  // Copia proyección de la cámara AR a ambos ojos
   stereoCams.left.projectionMatrix.copy(camera.projectionMatrix);
   stereoCams.right.projectionMatrix.copy(camera.projectionMatrix);
 
+  // Parte de la pose AR
   stereoCams.left.matrixWorld.copy(camera.matrixWorld);
   stereoCams.right.matrixWorld.copy(camera.matrixWorld);
-  
-  const halfIPD = IPD * 0.5;
-  stereoCams.left.translateX(-halfIPD);
-  stereoCams.right.translateX(halfIPD);
 
-  stereoCams.left.matrixWorldInverse.copy(stereoCams.left.matrixWorld).invert();
-  stereoCams.right.matrixWorldInverse.copy(stereoCams.right.matrixWorld).invert();
+  // Desplaza un poco cada ojo en X (IPD/2)
+  var halfIPD = IPD * 0.5;
 
-  // OJO IZQUIERDO
-  if (stereoCams.left.matrixWorldInverse.invert) {
-    // three >= r123 aprox.
-    stereoCams.left.matrixWorldInverse.copy(stereoCams.left.matrixWorld).invert();
-  } else {
-    // three r110…r122
-    stereoCams.left.matrixWorldInverse.getInverse(stereoCams.left.matrixWorld);
-  }
-  
-  // OJO DERECHO
-  if (stereoCams.right.matrixWorldInverse.invert) {
-    stereoCams.right.matrixWorldInverse.copy(stereoCams.right.matrixWorld).invert();
-  } else {
-    stereoCams.right.matrixWorldInverse.getInverse(stereoCams.right.matrixWorld);
-  }
+  // Ajuste directo en la matriz de mundo (fila de traslación: índices 12,13,14)
+  stereoCams.left.matrixWorld.elements[12]  -= halfIPD;
+  stereoCams.right.matrixWorld.elements[12] += halfIPD;
+
+  // Calcula las inversas (compatibles con tu versión de Three)
+  setInverse(stereoCams.left.matrixWorldInverse,  stereoCams.left.matrixWorld);
+  setInverse(stereoCams.right.matrixWorldInverse, stereoCams.right.matrixWorld);
+
+  // Render de cada ojo
+  renderer.setViewport(0, 0, w/2, h);
+  renderer.setScissor(0, 0, w/2, h);
+  renderer.render(scene, stereoCams.left);
+
+  renderer.setViewport(w/2, 0, w/2, h);
+  renderer.setScissor(w/2, 0, w/2, h);
+  renderer.render(scene, stereoCams.right);
 }
+
 
 function animate() {
   requestAnimationFrame(animate);
