@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
   <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-  <title>Mural AR + Controles</title>
+  <title>EMI Aniversario 75 años</title>
 
-  <!-- Librerías locales que ya tienes en tu repo -->
+  <!-- Librerrias para la camara y deteccion de AR -->
   <script src="three.js"></script>
   <script src="artoolkit.min.js"></script>
   <script src="artoolkit.api.js"></script>
@@ -45,32 +45,31 @@
     <button id="btnVR">🕶️ Activar VR</button>
   </div>
 
-  <!-- Tu video -->
   <video id="video" autoplay loop playsinline webkit-playsinline muted crossorigin="anonymous">
-    <!-- usa tu mismo archivo en ambos <source> para compatibilidad, como tenías -->
+
     <source src="video.mp4" type='video/ogg; codecs="theora, vorbis"'>
     <source src="video.mp4" type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'>
   </video>
 
 <script>
-/* ==== Variables de tu app (se mantienen) ==== */
+//VARIABLES
 var scene, camera, renderer, clock, deltaTime, totalTime;
 var arToolkitSource, arToolkitContext;
 var markerRoot1, mesh1;
 var videoEl, videoTex;
 
-/* ==== Añadidos para VR/Cardboard ==== */
+//PARA VR
 var stereoMode = false;
 var IPD = 0.064; // ~64 mm
 var stereoCams = { left: null, right: null };
 
-/* ==== UI ==== */
+/* BOTONES DE UI*/
 var btnPlay, btnMute, btnRestart, btnVR;
 
 initialize();
 animate();
 
-/* ----------------- Tu initialize() extendido ----------------- */
+/* INICIALIZARR */
 function initialize() {
   scene = new THREE.Scene();
 
@@ -92,7 +91,6 @@ function initialize() {
   deltaTime = 0;
   totalTime = 0;
 
-  // ====== ARToolkitSource ======
   arToolkitSource = new THREEx.ArToolkitSource({ sourceType: 'webcam' });
 
   function onResize() {
@@ -106,9 +104,8 @@ function initialize() {
   arToolkitSource.init(function onReady() { onResize(); });
   window.addEventListener('resize', onResize);
 
-  // ====== ARToolkitContext ======
   arToolkitContext = new THREEx.ArToolkitContext({
-    cameraParametersUrl: 'camera_para.dat', // tus rutas locales
+    cameraParametersUrl: 'camera_para.dat', 
     detectionMode: 'mono'
   });
 
@@ -116,18 +113,16 @@ function initialize() {
     camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
   });
 
-  // ====== Marker ======
   markerRoot1 = new THREE.Group();
   scene.add(markerRoot1);
   let markerControls1 = new THREEx.ArMarkerControls(arToolkitContext, markerRoot1, {
     type: 'pattern', patternUrl: 'hiro.patt'
   });
 
-  // ====== Plano con VideoTexture (tu código, con variable global) ======
   var geometry1 = new THREE.PlaneBufferGeometry(2, 2, 4, 4);
 
-  videoEl = document.getElementById('video');  // (global)
-  // reforzamos flags móviles (no afectan desktop)
+  videoEl = document.getElementById('video');
+ 
   videoEl.muted = true;
   videoEl.playsInline = true;
 
@@ -142,18 +137,15 @@ function initialize() {
   mesh1.rotation.x = -Math.PI / 2;
   markerRoot1.add(mesh1);
 
-  // ====== UI wiring ======
   wireUI();
 }
 
-/* ----------------- UI ----------------- */
 function wireUI() {
   btnPlay    = document.getElementById('btnPlay');
   btnMute    = document.getElementById('btnMute');
   btnRestart = document.getElementById('btnRestart');
   btnVR      = document.getElementById('btnVR');
 
-  // Estado inicial botones
   updatePlayLabel();
   updateMuteLabel();
   updateVRLabel();
@@ -194,12 +186,10 @@ function wireUI() {
     updateVRLabel();
   });
 
-  // Si vuelve del background, reintenta play (móvil)
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && videoEl.paused) videoEl.play().catch(()=>{});
   });
 
-  // Cuando el video tenga metadata, ajusta el tamaño del plano a su aspecto
   videoEl.addEventListener('loadedmetadata', fitPlaneToVideo, { once:true });
   if (videoEl.readyState >= 1) fitPlaneToVideo();
 }
@@ -216,18 +206,16 @@ function updateVRLabel() {
   btnVR.textContent = stereoMode ? '↩️ Salir VR' : '🕶️ Activar VR';
 }
 
-/* Ajusta el tamaño del plano al aspect real del video */
 function fitPlaneToVideo() {
   if (!videoEl.videoWidth || !videoEl.videoHeight) return;
   var aspect = videoEl.videoWidth / videoEl.videoHeight;
-  var W = 2;             // ancho “mural”
-  var H = W / aspect;    // alto según aspecto
+  var W = 2;             // ancho del mural
+  var H = W / aspect;    // altura
   mesh1.geometry.dispose();
   mesh1.geometry = new THREE.PlaneBufferGeometry(W, H, 4, 4);
   mesh1.geometry.needsUpdate = true;
 }
 
-/* ----------------- VR/Cardboard simple (estéreo) ----------------- */
 function setupStereoCameras() {
   stereoCams.left  = new THREE.PerspectiveCamera();
   stereoCams.right = new THREE.PerspectiveCamera();
@@ -238,36 +226,30 @@ function teardownStereoCameras() {
   renderer.setScissorTest(false);
 }
 
-/* ----------------- Tu update() intacto ----------------- */
 function update() {
   if (arToolkitSource.ready !== false) {
     arToolkitContext.update(arToolkitSource.domElement);
   }
 }
 
-/* ----------------- render(): añade estéreo sin romper el flujo ----------------- */
 function render() {
   if (!stereoMode || !stereoCams.left) {
-    // Render normal (tu comportamiento original)
     renderer.setScissorTest(false);
     renderer.render(scene, camera);
     return;
   }
 
-  // Render estereoscópico (dos “ojos”)
   var w = renderer.domElement.width;
   var h = renderer.domElement.height;
   renderer.setScissorTest(true);
 
-  // Copiar proyección AR a ambos ojos
   stereoCams.left.projectionMatrix.copy(camera.projectionMatrix);
   stereoCams.right.projectionMatrix.copy(camera.projectionMatrix);
 
-  // Copiar pose base y aplicar pequeña separación en X
   stereoCams.left.matrixWorld.copy(camera.matrixWorld);
   stereoCams.right.matrixWorld.copy(camera.matrixWorld);
 
-  var halfIPD = IPD * 0.5; // ~0.032 m
+  var halfIPD = IPD * 0.5;
   stereoCams.left.translateX(-halfIPD);
   stereoCams.right.translateX(halfIPD);
 
@@ -285,7 +267,6 @@ function render() {
   renderer.render(scene, stereoCams.right);
 }
 
-/* ----------------- Tu animate() intacto ----------------- */
 function animate() {
   requestAnimationFrame(animate);
   deltaTime = clock.getDelta();
