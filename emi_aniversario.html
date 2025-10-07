@@ -18,13 +18,11 @@
     body { margin:0; overflow:hidden; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,Monospace; background:#000; }
     #hud {
       position:fixed; top:10px; left:50%; transform:translateX(-50%);
-      background:rgba(0,0,0,.55); color:#fff; padding:8px 14px; border-radius:10px; z-index:20;
-      pointer-events:auto;
+      background:rgba(0,0,0,.55); color:#fff; padding:8px 14px; border-radius:10px; z-index:20; pointer-events:auto;
     }
     #ui {
       position:fixed; left:0; right:0; bottom:10px; z-index:20;
-      display:flex; gap:10px; justify-content:center; align-items:center;
-      pointer-events:auto;
+      display:flex; gap:10px; justify-content:center; align-items:center; pointer-events:auto;
     }
     #ui button {
       padding:10px 12px; border:0; border-radius:10px; cursor:pointer;
@@ -32,7 +30,7 @@
     }
     canvas {
       position:fixed; inset:0; width:100vw; height:100vh; display:block;
-      z-index:0; pointer-events:none; /* no tapar los botones */
+      z-index:0; pointer-events:none; /* no bloquear los clicks */
     }
     #video { display:none; }
   </style>
@@ -54,29 +52,31 @@
   </video>
 
 <script>
-// ================== VARIABLES ==================
+/* ================== VARIABLES ================== */
 var scene, camera, renderer, clock, deltaTime, totalTime;
 var arToolkitSource, arToolkitContext;
 var markerRoot1, mesh1;
 var videoEl, videoTex;
 
-// XR / VR
-var xrSupported = false;        // ¿el navegador soporta WebXR immersive-vr?
-var xrSession   = null;         // sesión XR activa
-var usingXRLoop = false;        // ¿estamos usando el loop de XR?
+/* XR / VR */
+var xrSupported = false;
+var xrSession   = null;
+var xrRefSpace  = null;
+var usingXRLoop = false;
+var xrGl        = null;
 
-// Fallback Cardboard estéreo
+/* Fallback Cardboard */
 var stereoMode = false;
 var IPD = 0.064;
-var stereoCams = { left: null, right: null };
+var stereoCams = { left:null, right:null };
 
-// UI
-var btnPlay = null, btnMute = null, btnRestart = null, btnVR = null;
+/* UI */
+var btnPlay, btnMute, btnRestart, btnVR;
 
 init();
 animate();
 
-// ================== INIT ==================
+/* ================== INIT ================== */
 function init() {
   scene = new THREE.Scene();
   scene.add(new THREE.AmbientLight(0xcccccc, 0.5));
@@ -89,31 +89,22 @@ function init() {
   renderer.setSize(640, 480);
   document.body.appendChild(renderer.domElement);
 
-  // Soporte XR si existe en esta build de three
-  if (renderer.xr) {
-    renderer.xr.enabled = false; // se habilita al entrar a XR
-    try {
-      renderer.xr.setReferenceSpaceType && renderer.xr.setReferenceSpaceType('local');
-    } catch(_) {}
-  } else if (renderer.vr) {
-    // Para builds antiguas (WebVR). Chrome móvil ya no soporta WebVR, pero dejamos el flag.
-    renderer.vr.enabled = false;
-  }
+  // Contexto WebGL compatible con XR (aunque tu three sea viejo)
+  xrGl = renderer.getContext();
+  if (xrGl && xrGl.makeXRCompatible) { xrGl.makeXRCompatible().catch(()=>{}); }
 
-  // ¿el navegador ofrece WebXR?
+  // Descubrir soporte WebXR
   if (navigator.xr && navigator.xr.isSessionSupported) {
-    navigator.xr.isSessionSupported('immersive-vr').then(function(supported){
-      xrSupported = !!supported;
-      console.log('[XR] immersive-vr supported:', xrSupported);
-    }).catch(()=>{ xrSupported = false; });
+    navigator.xr.isSessionSupported('immersive-vr')
+      .then(s => { xrSupported = !!s; console.log('[XR] immersive-vr soportado:', xrSupported); })
+      .catch(()=>{ xrSupported = false; });
   }
 
   clock = new THREE.Clock();
   deltaTime = 0; totalTime = 0;
 
-  // ---- ARToolkit Source ----
+  /* ---- ARToolkit Source ---- */
   arToolkitSource = new THREEx.ArToolkitSource({ sourceType: 'webcam' });
-
   function onResize() {
     arToolkitSource.onResize();
     arToolkitSource.copySizeTo(renderer.domElement);
@@ -124,7 +115,7 @@ function init() {
   arToolkitSource.init(onResize);
   window.addEventListener('resize', onResize);
 
-  // ---- ARToolkit Context ----
+  /* ---- ARToolkit Context ---- */
   arToolkitContext = new THREEx.ArToolkitContext({
     cameraParametersUrl: 'camera_para.dat',
     detectionMode: 'mono'
@@ -133,14 +124,14 @@ function init() {
     camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
   });
 
-  // ---- Marker ----
+  /* ---- Marker ---- */
   markerRoot1 = new THREE.Group();
   scene.add(markerRoot1);
   new THREEx.ArMarkerControls(arToolkitContext, markerRoot1, {
     type: 'pattern', patternUrl: 'hiro.patt'
   });
 
-  // ---- Plano con VideoTexture ----
+  /* ---- Plano con VideoTexture ---- */
   var geometry1 = new THREE.PlaneBufferGeometry(2, 2, 4, 4);
   videoEl = document.getElementById('video');
   videoEl.muted = true; videoEl.playsInline = true;
@@ -158,47 +149,44 @@ function init() {
   bindUI();
 }
 
-// ================== UI ==================
+/* ================== UI ================== */
 function bindUI() {
   btnPlay    = document.getElementById('btnPlay');
   btnMute    = document.getElementById('btnMute');
   btnRestart = document.getElementById('btnRestart');
   btnVR      = document.getElementById('btnVR');
 
-  // asegurar clicks sobre los botones
-  renderer.domElement.style.pointerEvents = 'none';
-  [btnPlay, btnMute, btnRestart, btnVR].forEach(function(b){
-    if (b) { b.style.pointerEvents = 'auto'; b.style.zIndex = 20; }
-  });
+  renderer.domElement.style.pointerEvents = 'none'; // que no tape clicks
+  [btnPlay, btnMute, btnRestart, btnVR].forEach(b => { if (b) { b.style.pointerEvents='auto'; b.style.zIndex=20; }});
 
   updatePlayLabel(); updateMuteLabel(); updateVRLabel();
 
-  btnPlay.addEventListener('click', async function (e) {
+  btnPlay.addEventListener('click', async (e) => {
     e.preventDefault();
-    try { videoEl.paused ? await videoEl.play() : videoEl.pause(); } catch(_){}
+    try { videoEl.paused ? await videoEl.play() : videoEl.pause(); } catch(_) {}
     updatePlayLabel();
   });
 
-  btnMute.addEventListener('click', async function (e) {
+  btnMute.addEventListener('click', async (e) => {
     e.preventDefault();
-    try { videoEl.muted = !videoEl.muted; await videoEl.play().catch(()=>{}); } catch(_){}
+    try { videoEl.muted = !videoEl.muted; await videoEl.play().catch(()=>{}); } catch(_) {}
     updateMuteLabel();
   });
 
-  btnRestart.addEventListener('click', async function (e) {
+  btnRestart.addEventListener('click', async (e) => {
     e.preventDefault();
-    try { videoEl.currentTime = 0; await videoEl.play().catch(()=>{}); } catch(_){}
+    try { videoEl.currentTime = 0; await videoEl.play().catch(()=>{}); } catch(_) {}
     updatePlayLabel();
   });
 
-  btnVR.addEventListener('click', async function (e) {
+  btnVR.addEventListener('click', async (e) => {
     e.preventDefault();
-    if (isInXR() || stereoMode) { await exitVR(); }
-    else                        { await enterVR(); }
+    if (isInXR() || stereoMode) await exitVR();
+    else                        await enterVR();
     updateVRLabel();
   });
 
-  document.addEventListener('visibilitychange', function(){
+  document.addEventListener('visibilitychange', () => {
     if (!document.hidden && videoEl.paused) videoEl.play().catch(()=>{});
   });
 
@@ -219,100 +207,103 @@ function fitPlaneToVideo() {
   mesh1.geometry.needsUpdate = true;
 }
 
-// ================== WEBXR (como A-Frame enterVR) ==================
-function isInXR() {
-  try { if (renderer.xr && typeof renderer.xr.isPresenting === 'boolean') return renderer.xr.isPresenting; } catch(_){}
-  return !!xrSession;
-}
+/* ================== WEBXR (immersive-vr) ================== */
+function isInXR(){ return !!xrSession; }
 
 async function enterVR() {
-  // 1) Preferir WebXR inmersivo si está disponible y esta build de three lo soporta
-  if (xrSupported && renderer.xr && renderer.xr.setSession) {
+  // 1) Intentar WebXR inmersivo (como A-Frame enterVR)
+  if (xrSupported && navigator.xr) {
     try {
-      renderer.xr.enabled = true;
       xrSession = await navigator.xr.requestSession('immersive-vr', {
         optionalFeatures: ['local', 'local-floor', 'bounded-floor']
       });
 
-      // loop de XR (como hace A-Frame internamente)
-      usingXRLoop = true;
-      renderer.setAnimationLoop(xrLoop);
+      // Canvas compatible con XR y capa base
+      xrGl = renderer.getContext();
+      if (xrGl.makeXRCompatible) await xrGl.makeXRCompatible();
+      xrSession.updateRenderState({ baseLayer: new XRWebGLLayer(xrSession, xrGl) });
 
-      xrSession.addEventListener('end', function(){
-        xrSession = null;
+      xrRefSpace = await xrSession.requestReferenceSpace('local');
+
+      usingXRLoop = true;
+      xrSession.requestAnimationFrame(onXRFrame); // loop XR
+
+      // Sugerir landscape + fullscreen (como hace A-Frame en móvil)
+      try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape'); } catch(_){}
+      try {
+        var el = document.documentElement;
+        (el.requestFullscreen||el.webkitRequestFullscreen||function(){}) .call(el);
+      } catch(_){}
+
+      xrSession.addEventListener('end', () => {
         usingXRLoop = false;
-        renderer.setAnimationLoop(null);
-        renderer.xr.enabled = false;
-        // volver a nuestro loop normal
-        animate();
+        xrSession = null;
+        try { document.fullscreenElement && document.exitFullscreen(); } catch(_){}
+        animate();            // vuelve loop normal
         updateVRLabel();
       });
 
-      await renderer.xr.setSession(xrSession);
-
-      // opcional: bloquear landscape y fullscreen para una experiencia tipo visor
-      try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape'); } catch(_) {}
-      try {
-        var elem = document.documentElement;
-        if (elem.requestFullscreen) elem.requestFullscreen();
-        else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
-      } catch(_){}
-
-      console.log('[XR] sesión iniciada');
-      return;
+      console.log('[XR] Sesión immersive-vr iniciada');
+      return; // listo
     } catch (e) {
-      console.warn('[XR] No se pudo iniciar immersive-vr, usando fallback estéreo:', e);
-      // cae a fallback
+      console.warn('[XR] Falló immersive-vr, uso fallback Cardboard:', e);
     }
-  } else if (renderer.vr) {
-    // 2) Builds antiguas con WebVR (por si acaso)
-    renderer.vr.enabled = true;
-    console.log('[WebVR] habilitado (fallback antiguo)');
-    return;
   }
 
-  // 3) Fallback: Cardboard estéreo propio
+  // 2) Fallback Cardboard (split-screen)
   stereoMode = true;
   if (!stereoCams.left || !stereoCams.right) setupStereoCameras();
   console.log('[Stereo] Cardboard ON');
 }
 
 async function exitVR() {
-  // salir de XR si estaba activo
-  if (xrSession) {
-    try { await xrSession.end(); } catch(_){}
+  if (xrSession) { try { await xrSession.end(); } catch(_){}
     xrSession = null;
   }
-  if (renderer.xr) renderer.xr.enabled = false;
-  if (renderer.vr) renderer.vr.enabled = false;
-
-  // quitar fullscreen si lo activamos
-  try {
-    if (document.fullscreenElement)      await document.exitFullscreen();
-    else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
-  } catch(_){}
-
-  // fallback estéreo OFF
   stereoMode = false;
   renderer.setScissorTest(false);
-
-  // si estábamos en loop XR, volver al loop normal
-  if (usingXRLoop) {
-    usingXRLoop = false;
-    renderer.setAnimationLoop(null);
-    animate();
-  }
-  console.log('[VR] salido');
+  usingXRLoop = false;
+  try { document.fullscreenElement && document.exitFullscreen(); } catch(_){}
+  console.log('[VR] OFF');
 }
 
-// loop específico de XR: igual que animate(), pero usando frames de XR
-function xrLoop() {
+function onXRFrame(time, frame) {
+  if (!xrSession) return;
+  xrSession.requestAnimationFrame(onXRFrame);
+
+  const pose = frame.getViewerPose(xrRefSpace);
+  if (!pose) return;
+
+  // ARToolkit sigue actualizando (webcam) aunque estés en VR
   update();
-  // En XR, three gestiona las cámaras/poses internas. Render normal.
-  renderer.render(scene, camera);
+
+  const baseLayer = xrSession.renderState.baseLayer;
+  const gl = xrGl;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, baseLayer.framebuffer);
+
+  // Renderizamos por cada "view" (ojo) con el mismo scene, ajustando proyección.
+  for (const view of pose.views) {
+    const vp = baseLayer.getViewport(view);
+    renderer.setViewport(vp.x, vp.y, vp.width, vp.height);
+    renderer.setScissor(vp.x, vp.y, vp.width, vp.height);
+
+    // Proyección del ojo (como hace A-Frame)
+    camera.projectionMatrix.fromArray(view.projectionMatrix);
+
+    // Vista: usar la inversa del transform del ojo como matrixWorld (equivale a cámara en world)
+    const inv = view.transform.inverse.matrix; // Float32Array[16]
+    const m = new THREE.Matrix4().fromArray(inv);
+    camera.matrixWorld.copy(m);
+    if (typeof camera.matrixWorldInverse.invert === 'function')
+      camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    else
+      camera.matrixWorldInverse.getInverse(camera.matrixWorld);
+
+    renderer.render(scene, camera);
+  }
 }
 
-// ================== Fallback Cardboard (estéreo) ==================
+/* ================== Fallback Cardboard ================== */
 function setupStereoCameras() {
   stereoCams.left  = new THREE.PerspectiveCamera();
   stereoCams.right = new THREE.PerspectiveCamera();
@@ -322,50 +313,44 @@ function teardownStereoCameras() {
   renderer.setScissorTest(false);
 }
 
-// ================== BUCLE ==================
+/* ================== BUCLE ================== */
 function update() {
   if (arToolkitSource.ready !== false) {
     arToolkitContext.update(arToolkitSource.domElement);
   }
 }
 
-// inversa compatible (three viejo/reciente)
 function setInverse(target, source) {
-  if (typeof target.invert === 'function') target.copy(source).invert();  // r123+
-  else target.getInverse(source);                                         // r110…
+  if (typeof target.invert === 'function') target.copy(source).invert();
+  else target.getInverse(source);
 }
 
 function render() {
-  // Si estamos en XR y usando el loop de XR, el render ocurre en xrLoop()
+  // si estamos en XR, el render sucede en onXRFrame()
   if (usingXRLoop && isInXR()) return;
 
-  // Fallback estereoscópico “Cardboard”
+  // Fallback Cardboard
   if (!stereoMode || !stereoCams.left) {
     renderer.setScissorTest(false);
     renderer.render(scene, camera);
     return;
   }
 
-  var w = renderer.domElement.width;
-  var h = renderer.domElement.height;
+  var w = renderer.domElement.width, h = renderer.domElement.height;
   renderer.setScissorTest(true);
 
-  // Proyección AR a cada ojo
   stereoCams.left.projectionMatrix.copy(camera.projectionMatrix);
   stereoCams.right.projectionMatrix.copy(camera.projectionMatrix);
 
-  // Pose base + separación IPD
   stereoCams.left.matrixWorld.copy(camera.matrixWorld);
   stereoCams.right.matrixWorld.copy(camera.matrixWorld);
   var halfIPD = IPD * 0.5;
-  stereoCams.left.matrixWorld.elements[12]  -= halfIPD;  // X
+  stereoCams.left.matrixWorld.elements[12]  -= halfIPD;
   stereoCams.right.matrixWorld.elements[12] += halfIPD;
 
-  // Inversas
   setInverse(stereoCams.left.matrixWorldInverse,  stereoCams.left.matrixWorld);
   setInverse(stereoCams.right.matrixWorldInverse, stereoCams.right.matrixWorld);
 
-  // Render ojos
   renderer.setViewport(0, 0, w/2, h);
   renderer.setScissor(0, 0, w/2, h);
   renderer.render(scene, stereoCams.left);
@@ -376,7 +361,7 @@ function render() {
 }
 
 function animate() {
-  // si estamos en XR con animationLoop activo, no usamos este loop
+  // si XR está activo, usamos su loop
   if (usingXRLoop && isInXR()) return;
 
   requestAnimationFrame(animate);
@@ -388,5 +373,6 @@ function animate() {
 </script>
 </body>
 </html>
+
 
 
