@@ -28,7 +28,7 @@
 </head>
 <body>
 
-  <div id="loader">Cargando AR… v5📱</div>
+  <div id="loader">Cargando AR… 📱 v6</div>
 
   <div id="hud">
     <b>Mural AR</b> · Apunta al marcador <b>Hiro</b>
@@ -115,7 +115,7 @@ function init(){
 
   new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
     type: 'pattern',
-    patternUrl: 'patt.hiro'                    // <-- súbelo a /data/
+    patternUrl: 'hiro.patt'                    // <-- súbelo a /data/
   });
 
   // plano con textura de video
@@ -245,4 +245,5 @@ function renderStereo(){
 </script>
 </body>
 </html>
+
 
