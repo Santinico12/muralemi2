@@ -5,14 +5,16 @@
   <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"/>
   <title>Mural AR (Three.js + jsartoolkit + VR/Cardboard)</title>
 
-  <!-- Tu stack que funciona -->
-  <script src="js/three.js"></script>
-  <script src="jsartoolkit5/artoolkit.min.js"></script>
-  <script src="jsartoolkit5/artoolkit.api.js"></script>
-  <script src="threex/threex-artoolkitsource.js"></script>
-  <script src="threex/threex-artoolkitcontext.js"></script>
-  <script src="threex/threex-arbasecontrols.js"></script>
-  <script src="threex/threex-armarkercontrols.js"></script>
+  <!-- Three.js (versión compatible con THREEx/jsartoolkit) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.110.0/build/three.min.js"></script>
+
+  <!-- jsartoolkit y THREEx desde AR.js 3.4.5 (CDN sin 404) -->
+  <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/vendor/jsartoolkit5/build/artoolkit.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/vendor/jsartoolkit5/js/artoolkit.api.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/src/threex/threex-artoolkitsource.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/src/threex/threex-artoolkitcontext.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/src/threex/threex-arbasecontrols.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/src/threex/threex-armarkercontrols.js"></script>
 
   <style>
     html, body { margin:0; height:100%; background:#000; overflow:hidden; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; }
@@ -20,14 +22,13 @@
     #controls { position:fixed; bottom:10px; left:0; right:0; display:flex; gap:10px; justify-content:center; z-index:10; }
     #controls button { padding:10px 12px; border:0; border-radius:10px; cursor:pointer; font-weight:600; background:rgba(255,255,255,.15); color:#fff; backdrop-filter: blur(4px); }
     #loader { position:fixed; inset:0; display:grid; place-items:center; background:#000; color:#fff; z-index:9999; }
-    /* canvas a pantalla completa */
     canvas { position:fixed; inset:0; width:100vw; height:100vh; display:block; }
     video#muralvid { display:none; }
   </style>
 </head>
 <body>
 
-  <div id="loader">Cargando AR… v4📱</div>
+  <div id="loader">Cargando AR… 📱</div>
 
   <div id="hud">
     <b>Mural AR</b> · Apunta al marcador <b>Hiro</b>
@@ -39,7 +40,7 @@
     <button id="btnVR" style="display:none">🕶️ Activar VR</button>
   </div>
 
-  <!-- Tu video del mural -->
+  <!-- TU video: debe existir en la raíz como /video.mp4 -->
   <video id="muralvid"
          src="video.mp4"
          preload="auto"
@@ -50,33 +51,29 @@
          crossorigin="anonymous"></video>
 
 <script>
-/* === Variables base === */
 let scene, camera, renderer, clock;
 let arToolkitSource, arToolkitContext;
 let markerRoot, planeMesh, frameMesh;
 let videoEl, videoTex;
 
-let stereoMode = false;           // VR/Cardboard ON/OFF
-const IPD = 0.064;                // distancia interpupilar ~64mm
+let stereoMode = false;
+const IPD = 0.064; // ~64mm
 const stereoCams = { left:null, right:null };
 
-/* === Init === */
 init();
 animate();
 
-/* ----------- Inicialización ----------- */
 function init(){
-  // escena y luces
+  // escena y luz
   scene = new THREE.Scene();
-  const amb = new THREE.AmbientLight(0xffffff, 0.7);
-  scene.add(amb);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-  // cámara (ARToolkit escribirá su proyección)
+  // cámara AR
   camera = new THREE.Camera();
   scene.add(camera);
 
   // renderer
-  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:false });
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
   renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -84,58 +81,62 @@ function init(){
 
   clock = new THREE.Clock();
 
-  // fuente de cámara (webcam)
+  // fuente webcam
   arToolkitSource = new THREEx.ArToolkitSource({ sourceType:'webcam' });
 
   const onResize = () => {
     arToolkitSource.onResize();
     arToolkitSource.copySizeTo(renderer.domElement);
-    if (arToolkitContext.arController) {
+    if (arToolkitContext.arController){
       arToolkitSource.copySizeTo(arToolkitContext.arController.canvas);
     }
   };
+
   arToolkitSource.init(() => {
     onResize();
     document.getElementById('loader').style.display = 'none';
-    document.getElementById('btnVR').style.display = 'inline-block'; // mostrar VR una vez inicia
+    document.getElementById('btnVR').style.display = 'inline-block';
   });
+
   window.addEventListener('resize', onResize);
 
   // contexto AR
   arToolkitContext = new THREEx.ArToolkitContext({
-    cameraParametersUrl: 'data/camera_para.dat',
+    cameraParametersUrl: 'https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/data/camera_para.dat',
     detectionMode: 'mono'
   });
+
   arToolkitContext.init(() => {
     camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
   });
 
-  // marker
+  // marcador Hiro
   markerRoot = new THREE.Group();
   scene.add(markerRoot);
+
   new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
-    type:'pattern',
-    patternUrl:'data/hiro.patt'
+    type: 'pattern',
+    patternUrl: 'https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/data/patt.hiro'
   });
 
-  // plano del mural (video)
-  const geometry = new THREE.PlaneBufferGeometry(2, 1.125, 2, 2); // 16:9 por defecto
+  // plano con textura de video
+  const geom = new THREE.PlaneBufferGeometry(2, 1.125, 2, 2); // 16:9 por defecto
   videoEl = document.getElementById('muralvid');
   videoTex = new THREE.VideoTexture(videoEl);
   videoTex.minFilter = THREE.LinearFilter;
   videoTex.magFilter = THREE.LinearFilter;
   videoTex.format   = THREE.RGBFormat;
-  const material = new THREE.MeshBasicMaterial({ map: videoTex, side: THREE.DoubleSide });
-  planeMesh = new THREE.Mesh(geometry, material);
+
+  const mat = new THREE.MeshBasicMaterial({ map: videoTex, side: THREE.DoubleSide });
+  planeMesh = new THREE.Mesh(geom, mat);
   planeMesh.rotation.x = -Math.PI/2;
   planeMesh.position.set(0, 0, 0.02);
   markerRoot.add(planeMesh);
 
-  // marco decorativo detrás (opcional)
+  // marco decorativo (opcional)
   const frameGeom = new THREE.BoxBufferGeometry(2.2, 0.08, 1.3);
   const frameMat  = new THREE.MeshBasicMaterial({ color: 0x654321 });
   frameMesh = new THREE.Mesh(frameGeom, frameMat);
-  // el box está en Y=alto, Z=profundo en coord locales del marker (rotaremos)
   frameMesh.rotation.x = -Math.PI/2;
   frameMesh.position.set(0, 0, -0.05);
   markerRoot.add(frameMesh);
@@ -144,22 +145,21 @@ function init(){
   wireUI();
 }
 
-/* ----------- UI (Start / Audio / VR) ----------- */
 function wireUI(){
   const btnStart = document.getElementById('btnStart');
   const btnAudio = document.getElementById('btnAudio');
   const btnVR    = document.getElementById('btnVR');
 
   btnStart.addEventListener('click', () => {
-    // autoplay móvil requiere muted + playsinline
+    // autoplay móvil: mute + playsInline y gesto del usuario
     videoEl.muted = true;
     videoEl.playsInline = true;
+    videoEl.load(); // asegura que tome src correcto
     const tryPlay = () => videoEl.play().catch(()=>setTimeout(tryPlay, 250));
     tryPlay();
 
-    // ajustar aspect ratio real cuando cargue metadata
     if (videoEl.readyState >= 1) fitPlaneToVideo();
-    else videoEl.addEventListener('loadedmetadata', fitPlaneToVideo, { once:true });
+    else videoEl.addEventListener('loadedmetadata', fitPlaneToVideo, {once:true});
 
     btnAudio.style.display = 'inline-block';
   });
@@ -175,32 +175,27 @@ function wireUI(){
   btnVR.addEventListener('click', () => {
     stereoMode = !stereoMode;
     btnVR.textContent = stereoMode ? '↩️ Salir VR' : '🕶️ Activar VR';
-    if (stereoMode) setupStereoCameras();
-    else teardownStereoCameras();
+    if (stereoMode) setupStereoCameras(); else teardownStereoCameras();
   });
 
-  // si la app vuelve al foreground, reintenta play del video
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && videoEl && videoEl.paused) {
-      videoEl.play().catch(()=>{});
-    }
+    if (!document.hidden && videoEl && videoEl.paused) videoEl.play().catch(()=>{});
   });
 }
 
-/* ----------- Ajustar tamaño del plano al aspecto del video ----------- */
 function fitPlaneToVideo(){
   if (!videoEl.videoWidth || !videoEl.videoHeight) return;
   const aspect = videoEl.videoWidth / videoEl.videoHeight;
-  const baseW = 2;                 // “ancho” del mural en metros
-  const baseH = baseW / aspect;
+  const W = 2;
+  const H = W / aspect;
   planeMesh.geometry.dispose();
-  planeMesh.geometry = new THREE.PlaneBufferGeometry(baseW, baseH, 2, 2);
+  planeMesh.geometry = new THREE.PlaneBufferGeometry(W, H, 2, 2);
   planeMesh.geometry.needsUpdate = true;
-  // también reajusta el marco para que no tape
-  frameMesh.scale.set( baseW/2, 1, baseH/1.3 );
+  // ajusta el marco
+  frameMesh.scale.set(W/2, 1, H/1.3);
+  console.log('[AR] video aspect', aspect.toFixed(3), 'plane', W.toFixed(2)+'x'+H.toFixed(2));
 }
 
-/* ----------- Estéreo (Cardboard) sin dependencias ----------- */
 function setupStereoCameras(){
   stereoCams.left  = new THREE.PerspectiveCamera();
   stereoCams.right = new THREE.PerspectiveCamera();
@@ -210,17 +205,13 @@ function teardownStereoCameras(){
   renderer.setScissorTest(false);
 }
 
-/* ----------- Bucle ----------- */
 function animate(){
   requestAnimationFrame(animate);
-  const delta = clock.getDelta();
 
-  // actualizar ARToolkit cada frame
-  if (arToolkitSource.ready) {
+  if (arToolkitSource.ready){
     arToolkitContext.update(arToolkitSource.domElement);
   }
 
-  // render normal o estereoscópico
   if (!stereoMode || !stereoCams.left){
     renderer.setScissorTest(false);
     renderer.render(scene, camera);
@@ -229,41 +220,39 @@ function animate(){
   }
 }
 
-/* ----------- Render estereoscópico ----------- */
 function renderStereo(){
   const w = renderer.domElement.width;
   const h = renderer.domElement.height;
   renderer.setScissorTest(true);
 
-  // copia proyección (ARToolkit la gestiona)
+  // proyección AR a cada ojo
   stereoCams.left.projectionMatrix.copy(camera.projectionMatrix);
   stereoCams.right.projectionMatrix.copy(camera.projectionMatrix);
 
-  // copia pose base y aplica pequeña separación en X
   stereoCams.left.matrixWorld.copy(camera.matrixWorld);
   stereoCams.right.matrixWorld.copy(camera.matrixWorld);
-  // El mundo está en “metros” ≈ usa ~0.032 m por ojo
-  const halfIPD = IPD * 0.5; // 0.032
+
+  const halfIPD = IPD * 0.5; // ~0.032 m
   stereoCams.left.translateX(-halfIPD);
   stereoCams.right.translateX(halfIPD);
 
   stereoCams.left.matrixWorldInverse.copy(stereoCams.left.matrixWorld).invert();
   stereoCams.right.matrixWorldInverse.copy(stereoCams.right.matrixWorld).invert();
 
-  // Ojo izquierdo
+  // ojo izquierdo
   renderer.setViewport(0, 0, w/2, h);
   renderer.setScissor(0, 0, w/2, h);
   renderer.render(scene, stereoCams.left);
 
-  // Ojo derecho
+  // ojo derecho
   renderer.setViewport(w/2, 0, w/2, h);
   renderer.setScissor(w/2, 0, w/2, h);
   renderer.render(scene, stereoCams.right);
 }
-
 </script>
 </body>
 </html>
+
 
 
 
